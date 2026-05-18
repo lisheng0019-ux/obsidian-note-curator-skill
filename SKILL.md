@@ -20,11 +20,15 @@ Read `config/defaults.json` before saving or downloading images. This installati
 ```json
 {
   "vault_root": "<absolute path to the Obsidian vault>",
-  "attachments_folder": "<absolute path inside the vault>"
+  "attachments_folder": "<absolute path inside the vault>",
+  "default_image_style": "hand-drawn",
+  "image_style_mode": "default"
 }
 ```
 
 When present, use `vault_root` as the default vault if `--vault` is omitted, and use `attachments_folder` as the default Obsidian image attachment base. The attachment folder must stay inside the target vault. Web-sourced images should be saved under `web-images/<note-slug>/` inside that base folder unless the user passes an explicit `--attachments-folder`.
+
+Use `default_image_style` as the default style for inserted or generated images. The default is `hand-drawn`. When `image_style_mode` is `auto`, choose a scene-appropriate style from the note context unless the user explicitly names a style.
 
 ## Capability Router
 
@@ -36,6 +40,7 @@ Choose the narrowest workflow that satisfies the user's request:
 | Understand screenshots, diagrams, photos, or scanned text | Vision + image inventory workflow |
 | Add existing local images | Image suggestion + insertion workflow |
 | Search the web for matching images and insert the best result | Web image search workflow |
+| Choose or auto-select image style | Image style workflow |
 | Translate a note or source material | Translation workflow |
 | Add section illustrations | Article illustration workflow |
 | Create a note cover | Cover image workflow |
@@ -104,11 +109,12 @@ python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note>
 ```
 
    - Use the returned query plan with the runtime's web/image search tool.
+   - Pass `--style <style>` to force a style, or `--style auto` / `--style-mode auto` to let the model choose a scene-specific style.
    - Compare candidates by semantic match, source trust, image clarity, license/usability, and caption fit.
    - Download and insert the best approved image with:
 
 ```bash
-python scripts/obsidian_image_helper.py download --vault <vault> --note <note> --url <image-url> --source-page <page-url> --caption "<short caption>" --insert
+python scripts/obsidian_image_helper.py download --vault <vault> --note <note> --url <image-url> --source-page <page-url> --caption "<short caption>" --style <style> --insert
 ```
 
 7. If no suitable local image exists.
@@ -121,6 +127,21 @@ python scripts/obsidian_image_helper.py download --vault <vault> --note <note> -
    - Avoid duplicate embeds and avoid putting decorative images between tightly related paragraphs.
    - For generated assets, confirm the output file exists inside the vault and the note uses a vault-relative link.
    - For web-sourced images, confirm a `.source.md` sidecar or equivalent attribution record exists unless the user explicitly disabled it.
+
+## Image Style Rules
+
+- Default inserted or generated images to `hand-drawn`: clean educational sketch, warm paper texture, low visual noise.
+- Let an explicit user style override all defaults. Accept built-in or custom style names.
+- If the user asks for automatic scene style, or `image_style_mode` is `auto`, select the style that best fits the note:
+  - `hand-drawn`: general knowledge, learning notes, conceptual explanations.
+  - `technical-schematic`: systems, architecture, workflows, engineering, APIs, databases.
+  - `infographic`: comparisons, summaries, metrics, timelines, dense knowledge cards.
+  - `editorial`: essays, opinions, culture, history, narrative concepts.
+  - `minimal`: checklists, memos, reference notes, sparse executive summaries.
+  - `photo`: real people, places, products, events, objects, field notes.
+- For generated images, include the selected style and the helper script's `prompt_modifier` in the image prompt.
+- For web image search, prefer candidates that match the selected style, but never choose a weaker or misleading image only for style.
+- For existing local images, treat style as a preference. Relevance and accuracy come first.
 
 ## Image Placement Rules
 

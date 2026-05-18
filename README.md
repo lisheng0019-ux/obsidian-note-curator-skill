@@ -22,6 +22,7 @@
   - 扫描 vault 内已有图片
   - 根据标题、标签、正文关键词推荐匹配图片
   - 自动插入 Obsidian wiki embed
+  - 支持选择插图风格，默认手绘风格，也可让大模型按场景自动选择
 - 网上搜索相关图片
   - 根据笔记分析结果生成图片搜索查询
   - 对候选图片进行语义匹配、来源可信度、清晰度和可用授权判断
@@ -93,11 +94,15 @@ config/defaults.json
 ```json
 {
   "vault_root": "D:\\path\\to\\your\\vault",
-  "attachments_folder": "D:\\path\\to\\your\\vault\\图片"
+  "attachments_folder": "D:\\path\\to\\your\\vault\\图片",
+  "default_image_style": "hand-drawn",
+  "image_style_mode": "default"
 }
 ```
 
 脚本读取笔记时，如果没有显式传入 `--vault`，会优先使用 `vault_root`。保存或下载图片时，如果没有显式传入 `--attachments-folder`，会优先使用 `attachments_folder`。这能避免 Windows 命令行传递中文路径时出现编码问题。
+
+`default_image_style` 控制默认插图/生成图风格，默认值为 `hand-drawn`。`image_style_mode` 设为 `auto` 时，会让 Claude 根据笔记场景自动选择更合适的图片风格。
 
 网上搜索下载的图片默认会放到：
 
@@ -181,10 +186,31 @@ python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note>
 
 Claude / Claudian 会用输出的 `primary_query` 和 `queries` 去搜索图片，并根据 `match_criteria` 选择最匹配的候选图。
 
+指定图片风格：
+
+```bash
+python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note> --style hand-drawn
+```
+
+让大模型按笔记场景自动选择风格：
+
+```bash
+python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note> --style auto
+```
+
+内置风格包括：
+
+- `hand-drawn`：默认手绘风格，适合知识笔记、学习笔记和概念解释。
+- `technical-schematic`：适合架构、流程、API、数据库、工程系统。
+- `infographic`：适合总结、对比、指标、时间线和高密度知识卡片。
+- `editorial`：适合随笔、观点、文化、历史和叙事概念。
+- `minimal`：适合清单、备忘、参考笔记和简洁摘要。
+- `photo`：适合真实人物、地点、产品、事件、物体和现场记录。
+
 ### 下载并插入网上图片
 
 ```bash
-python scripts/obsidian_image_helper.py download --vault <vault> --note <note> --url <image-url> --source-page <page-url> --caption "<caption>" --insert
+python scripts/obsidian_image_helper.py download --vault <vault> --note <note> --url <image-url> --source-page <page-url> --caption "<caption>" --style hand-drawn --insert
 ```
 
 默认会保存到：

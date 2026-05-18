@@ -1,4 +1,6 @@
 {
   "vault_root": "D:\\path\\to\\your\\vault",
-  "attachments_folder": "D:\\path\\to\\your\\vault\\图片"
+  "attachments_folder": "D:\\path\\to\\your\\vault\\图片",
+  "default_image_style": "hand-drawn",
+  "image_style_mode": "default"
 }

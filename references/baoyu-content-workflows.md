@@ -53,15 +53,19 @@ Preferred engine: `baoyu-article-illustrator`.
 Workflow:
 
 1. Analyze the note and choose 1-5 places where images add explanatory value.
-2. Prefer visual explanations over decoration.
-3. Generate or collect images into `Attachments/illustrations/<note-slug>/`.
-4. Insert each image near the section it supports:
+2. Choose the image style before generation or search:
+   - Default to `hand-drawn`.
+   - Use the user's explicit style when provided.
+   - Use automatic scene style when requested: `technical-schematic` for systems, `infographic` for dense summaries, `editorial` for essays, `minimal` for sparse references, and `photo` for real-world subjects.
+3. Prefer visual explanations over decoration.
+4. Generate or collect images into `Attachments/illustrations/<note-slug>/`.
+5. Insert each image near the section it supports:
 
 ```bash
 python scripts/obsidian_image_helper.py apply --vault <vault> --note <note> --image <image> --position after-heading --heading "<heading>" --caption "<caption>"
 ```
 
-5. Add a `visualAssets` list in frontmatter only when multiple generated assets are important to track.
+6. Add a `visualAssets` list in frontmatter only when multiple generated assets are important to track.
 
 ## Cover Images
 
@@ -72,14 +76,15 @@ Preferred engine: `baoyu-cover-image`; fallback: native image generation.
 Workflow:
 
 1. Summarize the note into one strong visual concept.
-2. Generate a cover into `Attachments/covers/<note-slug>.png`.
-3. Update or add frontmatter:
+2. Use `hand-drawn` cover style by default unless the user specifies another style or asks for automatic scene styling.
+3. Generate a cover into `Attachments/covers/<note-slug>.png`.
+4. Update or add frontmatter:
 
 ```yaml
 coverImage: Attachments/covers/<note-slug>.png
 ```
 
-4. Insert the cover as a hero image only if the user wants it visible in the note body. Otherwise keep it as frontmatter metadata.
+5. Insert the cover as a hero image only if the user wants it visible in the note body. Otherwise keep it as frontmatter metadata.
 
 ## Infographics
 
@@ -90,9 +95,10 @@ Preferred engine: `baoyu-infographic`.
 Workflow:
 
 1. Identify the information structure: timeline, comparison, funnel, tree, mind map, pyramid, grid, or process.
-2. Generate one image into `Attachments/infographics/<note-slug>-<topic>.png`.
-3. Insert the infographic after the note summary or after the section it visualizes.
-4. Add a short caption explaining what the visual helps the reader understand.
+2. Use `infographic` style for dense visual summaries, `hand-drawn` for softer learning notes, or automatic scene style when requested.
+3. Generate one image into `Attachments/infographics/<note-slug>-<topic>.png`.
+4. Insert the infographic after the note summary or after the section it visualizes.
+5. Add a short caption explaining what the visual helps the reader understand.
 
 ## Diagrams
 

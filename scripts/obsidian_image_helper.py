@@ -23,6 +23,45 @@ COMMON_IMAGE_DIRS = ("Attachments", "attachments", "assets", "Assets", "images",
 MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024
 SKILL_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = SKILL_DIR / "config" / "defaults.json"
+DEFAULT_IMAGE_STYLE = "hand-drawn"
+STYLE_PRESETS = {
+    "hand-drawn": {
+        "label": "hand-drawn",
+        "search_terms": ["hand drawn illustration", "sketch notes", "hand drawn diagram"],
+        "prompt_modifier": "hand-drawn educational illustration, clean sketch lines, warm paper texture, minimal visual noise",
+        "best_for": "default knowledge notes, learning notes, conceptual explanations",
+    },
+    "technical-schematic": {
+        "label": "technical-schematic",
+        "search_terms": ["technical schematic", "architecture diagram", "blueprint diagram"],
+        "prompt_modifier": "technical schematic, precise labels, blueprint-inspired layout, clean lines",
+        "best_for": "architecture, systems, workflows, engineering notes",
+    },
+    "infographic": {
+        "label": "infographic",
+        "search_terms": ["infographic", "visual summary", "knowledge card"],
+        "prompt_modifier": "high-clarity infographic, structured modules, concise labels, strong hierarchy",
+        "best_for": "summaries, comparisons, processes, data-heavy notes",
+    },
+    "editorial": {
+        "label": "editorial",
+        "search_terms": ["editorial illustration", "conceptual illustration", "magazine illustration"],
+        "prompt_modifier": "editorial conceptual illustration, polished composition, restrained colors",
+        "best_for": "essays, opinions, narrative notes",
+    },
+    "minimal": {
+        "label": "minimal",
+        "search_terms": ["minimal illustration", "simple line art", "clean vector"],
+        "prompt_modifier": "minimal clean illustration, generous whitespace, simple shapes, low distraction",
+        "best_for": "reference notes, executive summaries, sparse notes",
+    },
+    "photo": {
+        "label": "photo",
+        "search_terms": ["photo", "realistic photo", "documentary image"],
+        "prompt_modifier": "realistic documentary photo style, natural lighting, authentic scene",
+        "best_for": "people, places, objects, events, product or field notes",
+    },
+}
 
 
 @dataclass
@@ -63,6 +102,26 @@ def configured_attachment_folder() -> str | None:
     if not isinstance(value, str):
         raise ValueError("attachments_folder in config/defaults.json must be a string")
     return value.strip() or None
+
+
+def configured_image_style() -> str:
+    config = load_config()
+    value = config.get("default_image_style") or config.get("image_style") or DEFAULT_IMAGE_STYLE
+    if not isinstance(value, str):
+        raise ValueError("default_image_style in config/defaults.json must be a string")
+    value = value.strip().lower()
+    return value or DEFAULT_IMAGE_STYLE
+
+
+def configured_style_mode() -> str:
+    config = load_config()
+    value = config.get("image_style_mode") or "default"
+    if not isinstance(value, str):
+        raise ValueError("image_style_mode in config/defaults.json must be a string")
+    value = value.strip().lower()
+    if value not in {"default", "auto"}:
+        raise ValueError("image_style_mode must be 'default' or 'auto'")
+    return value
 
 
 def configured_vault_root() -> Path | None:
@@ -216,6 +275,76 @@ def extract_terms(text: str) -> list[str]:
     return output[:80]
 
 
+def recommend_style(text: str, terms: list[str]) -> tuple[str, str]:
+    haystack = " ".join([text.lower(), *terms])
+    technical = ("architecture", "system", "workflow", "api", "database", "server", "模型", "架构", "流程", "系统", "工程")
+    data = ("metric", "data", "comparison", "table", "summary", "dashboard", "指标", "数据", "对比", "总结", "信息图")
+    narrative = ("story", "essay", "reflection", "history", "culture", "故事", "随笔", "历史", "文化")
+    tangible = ("photo", "person", "place", "product", "event", "人物", "地点", "产品", "现场", "照片")
+    sparse = ("memo", "brief", "checklist", "reference", "清单", "备忘", "参考")
+    if any(token in haystack for token in technical):
+        return "technical-schematic", "technical or process-oriented note"
+    if any(token in haystack for token in data):
+        return "infographic", "summary, comparison, or data-heavy note"
+    if any(token in haystack for token in tangible):
+        return "photo", "note appears to need a real-world subject"
+    if any(token in haystack for token in narrative):
+        return "editorial", "essay or narrative note"
+    if any(token in haystack for token in sparse):
+        return "minimal", "compact reference-style note"
+    return DEFAULT_IMAGE_STYLE, "general knowledge note"
+
+
+def style_details(style: str) -> dict:
+    normalized = style.strip().lower() or DEFAULT_IMAGE_STYLE
+    preset = STYLE_PRESETS.get(normalized)
+    if preset:
+        return {"name": normalized, **preset}
+    return {
+        "name": normalized,
+        "label": normalized,
+        "search_terms": [normalized, f"{normalized} illustration"],
+        "prompt_modifier": f"{normalized} visual style, coherent with the note context",
+        "best_for": "user-specified custom style",
+    }
+
+
+def build_style_plan(text: str, terms: list[str], style_arg: str | None, style_mode_arg: str | None) -> dict:
+    configured_style = configured_image_style()
+    configured_mode = configured_style_mode()
+    requested_style = (style_arg or "").strip().lower()
+    requested_mode = (style_mode_arg or "").strip().lower()
+    if requested_mode and requested_mode not in {"default", "auto"}:
+        raise ValueError("--style-mode must be 'default' or 'auto'")
+    mode = requested_mode or configured_mode
+    if requested_style == "auto":
+        mode = "auto"
+    if requested_style and requested_style != "auto":
+        selected = requested_style
+        reason = "user-specified style"
+        mode = "custom"
+    elif mode == "auto":
+        selected, reason = recommend_style(text, terms)
+    else:
+        selected = configured_style
+        reason = "configured default style"
+    details = style_details(selected)
+    alternatives = [
+        {"name": name, "best_for": preset["best_for"]}
+        for name, preset in STYLE_PRESETS.items()
+        if name != selected
+    ]
+    return {
+        "mode": mode,
+        "selected": details["name"],
+        "label": details["label"],
+        "reason": reason,
+        "search_terms": details["search_terms"],
+        "prompt_modifier": details["prompt_modifier"],
+        "alternatives": alternatives[:6],
+    }
+
+
 def first_heading_or_stem(text: str, note: Path) -> str:
     match = re.search(r"^#\s+(.+)$", text, flags=re.MULTILINE)
     if match:
@@ -298,10 +427,11 @@ def suggest_images(vault: Path, note: Path, limit: int) -> dict:
     }
 
 
-def build_web_query_plan(vault: Path, note: Path) -> dict:
+def build_web_query_plan(vault: Path, note: Path, style_arg: str | None = None, style_mode_arg: str | None = None) -> dict:
     text = read_text(note)
     title = first_heading_or_stem(text, note)
     terms = extract_terms(text)
+    style_plan = build_style_plan(text, terms, style_arg, style_mode_arg)
     headings = [
         heading.strip()
         for heading in re.findall(r"^#{2,3}\s+(.+)$", text, flags=re.MULTILINE)
@@ -314,6 +444,8 @@ def build_web_query_plan(vault: Path, note: Path) -> dict:
     queries = []
     for suffix in ("illustration", "diagram", "infographic", "photo"):
         queries.append(f"{topic} {suffix}".strip())
+    for style_term in style_plan["search_terms"]:
+        queries.append(f"{topic} {style_term}".strip())
     if re.search(r"[\u4e00-\u9fff]", text):
         queries.insert(0, f"{topic} 配图")
         queries.insert(1, f"{topic} 信息图")
@@ -326,6 +458,7 @@ def build_web_query_plan(vault: Path, note: Path) -> dict:
             unique_queries.append(query)
     note_slug = slugify(title or note.stem, "note")
     target_folder = resolve_attachment_base(vault, None, create=False) / "web-images" / note_slug
+    style_queries = [f"{topic} {term}".strip() for term in style_plan["search_terms"]]
     return {
         "vault": str(vault),
         "note": str(note),
@@ -333,10 +466,13 @@ def build_web_query_plan(vault: Path, note: Path) -> dict:
         "headings": headings,
         "terms_used": core_terms,
         "target_folder": normalize_rel(target_folder, vault),
+        "image_style": style_plan,
         "primary_query": unique_queries[0],
         "queries": unique_queries[:6],
+        "style_queries": style_queries[:5],
         "match_criteria": [
             "semantic match with the note title, headings, and core entities",
+            f"visual style should match '{style_plan['selected']}' unless the model selects a better scene-specific style",
             "clear subject matter that adds evidence or explanation, not decoration only",
             "trustworthy source page and usable image license or user-approved use",
             "sufficient resolution, no heavy watermark, no misleading crop",
@@ -419,11 +555,16 @@ def download_url(url: str) -> tuple[bytes, str | None]:
 
 def write_source_note(image_path: Path, vault: Path, note: Path, args: argparse.Namespace) -> Path:
     source_path = image_path.with_suffix(f"{image_path.suffix}.source.md")
+    note_text = read_text(note)
+    style_plan = build_style_plan(note_text, extract_terms(note_text), args.style, getattr(args, "style_mode", None))
     lines = [
         "---",
         f"sourceUrl: {json.dumps(args.url, ensure_ascii=False)}",
         f"sourcePage: {json.dumps(args.source_page or '', ensure_ascii=False)}",
         f"sourceTitle: {json.dumps(args.source_title or '', ensure_ascii=False)}",
+        f"imageStyle: {json.dumps(style_plan['selected'], ensure_ascii=False)}",
+        f"imageStyleMode: {json.dumps(style_plan['mode'], ensure_ascii=False)}",
+        f"imageStyleReason: {json.dumps(style_plan['reason'], ensure_ascii=False)}",
         f"downloadedAt: {datetime.now(timezone.utc).isoformat()}",
         f"usedIn: {json.dumps(normalize_rel(note, vault), ensure_ascii=False)}",
         "---",
@@ -439,6 +580,8 @@ def download_web_image(args: argparse.Namespace) -> dict:
     vault = find_vault(Path(args.vault).resolve() if args.vault else None)
     note = resolve_note(vault, args.note)
     folder = safe_attachment_folder(vault, args.attachments_folder, note)
+    note_text = read_text(note)
+    style_plan = build_style_plan(note_text, extract_terms(note_text), args.style, args.style_mode)
     if args.dry_run:
         return {
             "changed": False,
@@ -446,6 +589,7 @@ def download_web_image(args: argparse.Namespace) -> dict:
             "note": str(note),
             "target_folder": normalize_rel(folder, vault),
             "url": args.url,
+            "image_style": style_plan,
             "insert": args.insert,
         }
     data, content_type = download_url(args.url)
@@ -481,6 +625,7 @@ def download_web_image(args: argparse.Namespace) -> dict:
         "absolute_path": str(destination),
         "source_note": normalize_rel(source_note, vault) if source_note else None,
         "content_type": content_type,
+        "image_style": style_plan,
         "insert_result": insert_result,
     }
 
@@ -592,6 +737,8 @@ def main() -> int:
     webq = sub.add_parser("web-query")
     webq.add_argument("--vault")
     webq.add_argument("--note", required=True)
+    webq.add_argument("--style", help="Image style name, or 'auto' for scene-specific style selection")
+    webq.add_argument("--style-mode", choices=["default", "auto"], help="Use configured default style or auto-select by note context")
 
     app = sub.add_parser("apply")
     app.add_argument("--vault")
@@ -612,6 +759,8 @@ def main() -> int:
     dl.add_argument("--source-page")
     dl.add_argument("--source-title")
     dl.add_argument("--caption")
+    dl.add_argument("--style")
+    dl.add_argument("--style-mode", choices=["default", "auto"])
     dl.add_argument("--position", choices=["hero", "after-heading", "end"], default="hero")
     dl.add_argument("--heading")
     dl.add_argument("--attachments-folder")
@@ -627,7 +776,7 @@ def main() -> int:
         elif args.command == "suggest":
             print_json(suggest_images(vault, resolve_note(vault, args.note), args.limit))
         elif args.command == "web-query":
-            print_json(build_web_query_plan(vault, resolve_note(vault, args.note)))
+            print_json(build_web_query_plan(vault, resolve_note(vault, args.note), args.style, args.style_mode))
         elif args.command == "apply":
             print_json(apply_images(args))
         elif args.command == "download":
