@@ -13,6 +13,19 @@ Use Claude's vision capability for image understanding. Use the bundled helper s
 
 This skill can also coordinate optional content-production skills such as `baoyu-translate`, `baoyu-article-illustrator`, `baoyu-cover-image`, `baoyu-infographic`, `baoyu-diagram`, and `baoyu-slide-deck` when they are installed. The Obsidian note remains the source of truth; generated or transformed assets must be saved into the vault and linked back from the note.
 
+## Local Configuration
+
+Read `config/defaults.json` before saving or downloading images. This installation can set:
+
+```json
+{
+  "vault_root": "<absolute path to the Obsidian vault>",
+  "attachments_folder": "<absolute path inside the vault>"
+}
+```
+
+When present, use `vault_root` as the default vault if `--vault` is omitted, and use `attachments_folder` as the default Obsidian image attachment base. The attachment folder must stay inside the target vault. Web-sourced images should be saved under `web-images/<note-slug>/` inside that base folder unless the user passes an explicit `--attachments-folder`.
+
 ## Capability Router
 
 Choose the narrowest workflow that satisfies the user's request:
@@ -122,13 +135,14 @@ python scripts/obsidian_image_helper.py download --vault <vault> --note <note> -
 - Use `![[path/to/image.png|caption]]` for vault-local embeds.
 - Use relative paths from the vault root, with forward slashes.
 - Keep attachments inside the user's existing attachment folder when obvious; otherwise use `Attachments/`.
-- Use stable asset subfolders when creating new files:
-  - `Attachments/covers/`
-  - `Attachments/illustrations/<note-slug>/`
-  - `Attachments/web-images/<note-slug>/`
-  - `Attachments/infographics/`
-  - `Attachments/diagrams/`
-  - `Attachments/slides/<note-slug>/`
+- If `config/defaults.json` defines `attachments_folder`, treat it as the default attachment folder.
+- Use stable asset subfolders under the configured attachment base when creating new image files:
+  - `covers/`
+  - `illustrations/<note-slug>/`
+  - `web-images/<note-slug>/`
+  - `infographics/`
+  - `diagrams/`
+  - `slides/<note-slug>/`
 - Do not edit `.obsidian/`, plugin settings, or hidden provider folders unless explicitly asked.
 - Do not rename existing notes or images unless the user asks.
 - Do not overwrite generated assets unless the user asks; append a short suffix or timestamp on conflict.

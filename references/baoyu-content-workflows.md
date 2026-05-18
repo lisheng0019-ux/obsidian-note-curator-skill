@@ -6,12 +6,13 @@ Use this reference when an Obsidian note needs translation, generated visuals, d
 
 1. Keep the source note unchanged unless the user asks for in-place rewriting.
 2. Save generated files under the vault, preferably:
-   - Covers: `Attachments/covers/`
-   - Article illustrations: `Attachments/illustrations/<note-slug>/`
-   - Infographics: `Attachments/infographics/`
-   - Diagrams: `Attachments/diagrams/`
-   - Slide assets: `Attachments/slides/<note-slug>/`
+   - Covers: `<attachment-base>/covers/`
+   - Article illustrations: `<attachment-base>/illustrations/<note-slug>/`
+   - Infographics: `<attachment-base>/infographics/`
+   - Diagrams: `<attachment-base>/diagrams/`
+   - Slide assets: `<attachment-base>/slides/<note-slug>/`
    - Slide outlines or decks: `Slides/<note-slug>/`
+   - Use `config/defaults.json` `attachments_folder` as `<attachment-base>` when present.
 3. Insert generated images with `scripts/obsidian_image_helper.py apply`.
 4. Update frontmatter only for stable metadata such as `coverImage`, `translationOf`, `language`, `visualAssets`, or `slideDeck`.
 5. Keep external API keys, cookies, and platform credentials outside the note. Never paste secrets into Markdown.

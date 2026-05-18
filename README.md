@@ -47,6 +47,8 @@ obsidian-note-curator-skill/
 ├── SKILL.md
 ├── agents/
 │   └── openai.yaml
+├── config/
+│   └── defaults.json
 ├── references/
 │   ├── baoyu-content-workflows.md
 │   └── obsidian-image-workflow.md
@@ -76,6 +78,31 @@ Windows 示例：
 
 ```powershell
 git clone https://github.com/lisheng0019-ux/obsidian-note-curator-skill.git "$HOME\.claude\skills\obsidian-note-curator"
+```
+
+## 默认路径配置
+
+可以创建本机配置文件：
+
+```text
+config/defaults.json
+```
+
+内容示例：
+
+```json
+{
+  "vault_root": "D:\\path\\to\\your\\vault",
+  "attachments_folder": "D:\\path\\to\\your\\vault\\图片"
+}
+```
+
+脚本读取笔记时，如果没有显式传入 `--vault`，会优先使用 `vault_root`。保存或下载图片时，如果没有显式传入 `--attachments-folder`，会优先使用 `attachments_folder`。这能避免 Windows 命令行传递中文路径时出现编码问题。
+
+网上搜索下载的图片默认会放到：
+
+```text
+<attachments_folder>\web-images\<note-slug>\
 ```
 
 ## 依赖
@@ -187,7 +214,7 @@ python scripts/obsidian_image_helper.py apply --vault <vault> --note <note> --im
 ```text
 Attachments/covers/
 Attachments/illustrations/<note-slug>/
-Attachments/web-images/<note-slug>/
+图片/web-images/<note-slug>/
 Attachments/infographics/
 Attachments/diagrams/
 Attachments/slides/<note-slug>/

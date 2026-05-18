@@ -76,14 +76,14 @@ Reject search results when licensing is unclear and the note is intended for pub
 
 ## Generated asset folders
 
-Use stable folders so future runs can find and reuse generated assets:
+Use stable folders so future runs can find and reuse generated assets. If `config/defaults.json` defines `attachments_folder`, place these folders under that configured attachment base; otherwise place them under `Attachments/`.
 
-- Covers: `Attachments/covers/`
-- Article illustrations: `Attachments/illustrations/<note-slug>/`
-- Web-sourced images: `Attachments/web-images/<note-slug>/`
-- Infographics: `Attachments/infographics/`
-- Diagrams: `Attachments/diagrams/`
-- Slide images: `Attachments/slides/<note-slug>/`
+- Covers: `covers/`
+- Article illustrations: `illustrations/<note-slug>/`
+- Web-sourced images: `web-images/<note-slug>/`
+- Infographics: `infographics/`
+- Diagrams: `diagrams/`
+- Slide images: `slides/<note-slug>/`
 
 Prefer descriptive filenames such as `retrieval-augmented-generation-flow.svg` over generic names such as `image1.png`.
 

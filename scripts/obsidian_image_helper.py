@@ -21,6 +21,8 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff",
 EXCLUDED_DIRS = {".git", ".obsidian", ".trash", ".claude", ".claudian", ".codex", "node_modules"}
 COMMON_IMAGE_DIRS = ("Attachments", "attachments", "assets", "Assets", "images", "Images", "media", "Media", "resources", "Resources")
 MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024
+SKILL_DIR = Path(__file__).resolve().parents[1]
+DEFAULT_CONFIG = SKILL_DIR / "config" / "defaults.json"
 
 
 @dataclass
@@ -39,6 +41,43 @@ def write_text(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8", newline="")
 
 
+def load_config() -> dict:
+    if not DEFAULT_CONFIG.exists():
+        return {}
+    try:
+        data = json.loads(DEFAULT_CONFIG.read_text(encoding="utf-8-sig"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid config JSON: {DEFAULT_CONFIG}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"Config must be a JSON object: {DEFAULT_CONFIG}")
+    return data
+
+
+def configured_attachment_folder() -> str | None:
+    config = load_config()
+    value = config.get("attachments_folder")
+    if value is None:
+        value = config.get("attachment_folder")
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("attachments_folder in config/defaults.json must be a string")
+    return value.strip() or None
+
+
+def configured_vault_root() -> Path | None:
+    config = load_config()
+    value = config.get("vault_root") or config.get("vault")
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("vault_root in config/defaults.json must be a string")
+    value = value.strip()
+    if not value:
+        return None
+    return Path(value).resolve()
+
+
 def normalize_rel(path: Path, vault: Path) -> str:
     try:
         rel = path.resolve().relative_to(vault.resolve())
@@ -48,6 +87,10 @@ def normalize_rel(path: Path, vault: Path) -> str:
 
 
 def find_vault(start: Path | None) -> Path:
+    if start is None:
+        configured = configured_vault_root()
+        if configured:
+            return configured
     current = (start or Path.cwd()).resolve()
     if current.is_file():
         current = current.parent
@@ -282,13 +325,14 @@ def build_web_query_plan(vault: Path, note: Path) -> dict:
             seen.add(key)
             unique_queries.append(query)
     note_slug = slugify(title or note.stem, "note")
+    target_folder = resolve_attachment_base(vault, None, create=False) / "web-images" / note_slug
     return {
         "vault": str(vault),
         "note": str(note),
         "title": title,
         "headings": headings,
         "terms_used": core_terms,
-        "target_folder": f"Attachments/web-images/{note_slug}",
+        "target_folder": normalize_rel(target_folder, vault),
         "primary_query": unique_queries[0],
         "queries": unique_queries[:6],
         "match_criteria": [
@@ -326,18 +370,30 @@ def unique_path(path: Path) -> Path:
         counter += 1
 
 
-def safe_attachment_folder(vault: Path, folder_arg: str | None, note: Path) -> Path:
-    if folder_arg:
-        folder = vault / folder_arg
+def resolve_attachment_base(vault: Path, folder_arg: str | None, create: bool = True) -> Path:
+    folder_value = folder_arg or configured_attachment_folder()
+    if folder_value:
+        folder_path = Path(folder_value)
+        folder = folder_path if folder_path.is_absolute() else vault / folder_path
     else:
-        note_slug = slugify(first_heading_or_stem(read_text(note), note), "note")
-        folder = vault / "Attachments" / "web-images" / note_slug
+        folder = vault / "Attachments"
     folder = folder.resolve()
     try:
         folder.relative_to(vault.resolve())
     except ValueError as exc:
         raise ValueError(f"Attachment folder must stay inside the vault: {folder}") from exc
-    folder.mkdir(parents=True, exist_ok=True)
+    if create:
+        folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def safe_attachment_folder(vault: Path, folder_arg: str | None, note: Path) -> Path:
+    if folder_arg:
+        folder = resolve_attachment_base(vault, folder_arg, create=True)
+    else:
+        note_slug = slugify(first_heading_or_stem(read_text(note), note), "note")
+        folder = resolve_attachment_base(vault, None, create=True) / "web-images" / note_slug
+        folder.mkdir(parents=True, exist_ok=True)
     return folder
 
 
@@ -464,8 +520,7 @@ def ensure_inside_vault(vault: Path, image: Path, attachment_folder: str | None,
     except ValueError:
         if not copy:
             raise ValueError(f"Image is outside the vault; pass --copy to copy it in: {image}")
-    folder = vault / (attachment_folder or "Attachments")
-    folder.mkdir(parents=True, exist_ok=True)
+    folder = resolve_attachment_base(vault, attachment_folder, create=True)
     destination = folder / image.name
     counter = 1
     while destination.exists() and destination.resolve() != image:
