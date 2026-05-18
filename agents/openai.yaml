@@ -1,0 +1,4 @@
+interface:
+  display_name: "Obsidian Note Curator"
+  short_description: "Curate Obsidian notes into rich assets"
+  default_prompt: "Organize this Obsidian note, analyze images, and add translation or visual assets when useful."
