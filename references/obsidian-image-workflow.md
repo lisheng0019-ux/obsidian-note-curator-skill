@@ -27,8 +27,9 @@ Selection order:
 1. Existing embeds already in the note.
 2. Local vault images with matching filename/path/title/heading keywords.
 3. Local images in common folders: `Attachments`, `assets`, `images`, `media`, `resources`.
-4. User-approved generated or externally sourced images.
-5. Generated covers, illustrations, infographics, diagrams, or slide images created by a specialized workflow.
+4. User-approved web-sourced images found through image search.
+5. User-approved generated images.
+6. Generated covers, illustrations, infographics, diagrams, or slide images created by a specialized workflow.
 
 Reject images that are merely aesthetic when the note is factual or research-oriented.
 
@@ -42,12 +43,44 @@ If using external images, prefer:
 
 Do not hotlink external images unless the user explicitly wants that.
 
+## Web image search
+
+Use this workflow when local vault images do not match the note well enough and the user wants online image sourcing.
+
+1. Generate a search plan from the note:
+
+```bash
+python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note>
+```
+
+2. Search with the runtime's web/image search tool using `primary_query`, then try alternate `queries` if needed.
+3. Collect 5-10 candidates with image URL, source page URL, title/alt text, visible license/source hints, and thumbnail preview when available.
+4. Pick the best candidate using these criteria:
+   - Semantic relevance to the note title, headings, entities, and claims.
+   - Adds evidence or explanation; not just decoration.
+   - Comes from a trustworthy source page.
+   - Has usable rights: public domain, Creative Commons, official media, user-approved fair use, or another clearly acceptable source.
+   - Has enough resolution and no distracting watermark.
+   - Can be captioned honestly in one short sentence.
+5. Download and insert the selected image:
+
+```bash
+python scripts/obsidian_image_helper.py download --vault <vault> --note <note> --url <image-url> --source-page <page-url> --source-title "<source title>" --caption "<caption>" --insert
+```
+
+6. Re-run `inventory` and verify the embed resolves.
+
+The `download` command stores web images under `Attachments/web-images/<note-slug>/` by default and writes a `.source.md` sidecar with source metadata. Keep that sidecar unless the user explicitly asks not to preserve attribution.
+
+Reject search results when licensing is unclear and the note is intended for publishing. For private research notes, still preserve source metadata so the user can revisit the origin later.
+
 ## Generated asset folders
 
 Use stable folders so future runs can find and reuse generated assets:
 
 - Covers: `Attachments/covers/`
 - Article illustrations: `Attachments/illustrations/<note-slug>/`
+- Web-sourced images: `Attachments/web-images/<note-slug>/`
 - Infographics: `Attachments/infographics/`
 - Diagrams: `Attachments/diagrams/`
 - Slide images: `Attachments/slides/<note-slug>/`

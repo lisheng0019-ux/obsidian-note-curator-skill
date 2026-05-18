@@ -1,6 +1,6 @@
 ---
 name: obsidian-note-curator
-description: Organize and enrich Obsidian Markdown notes in Claude Code/Claudian. Use for note cleanup, structure rewriting, frontmatter/tags/backlinks, image understanding/OCR/captions, automatic note images, translation, article illustrations, cover images, infographics, SVG diagrams, slide decks, Chinese or multilingual note curation, Obsidian vault work, .md notes, or Claudian workflows.
+description: Organize and enrich Obsidian Markdown notes in Claude Code/Claudian. Use for note cleanup, structure rewriting, frontmatter/tags/backlinks, image understanding/OCR/captions, automatic note images from local vault or web image search, translation, article illustrations, cover images, infographics, SVG diagrams, slide decks, Chinese or multilingual note curation, Obsidian vault work, .md notes, or Claudian workflows.
 ---
 
 # Obsidian Note Curator
@@ -22,6 +22,7 @@ Choose the narrowest workflow that satisfies the user's request:
 | Clean up, structure, tag, summarize, link notes | Core note curation workflow |
 | Understand screenshots, diagrams, photos, or scanned text | Vision + image inventory workflow |
 | Add existing local images | Image suggestion + insertion workflow |
+| Search the web for matching images and insert the best result | Web image search workflow |
 | Translate a note or source material | Translation workflow |
 | Add section illustrations | Article illustration workflow |
 | Create a note cover | Cover image workflow |
@@ -83,6 +84,19 @@ python scripts/obsidian_image_helper.py apply --vault <vault> --note <note> --im
 ```
 
    - Use `--position after-heading --heading "<heading text>"` for section-specific images.
+   - If local candidates are weak and the user wants web sourcing, run:
+
+```bash
+python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note>
+```
+
+   - Use the returned query plan with the runtime's web/image search tool.
+   - Compare candidates by semantic match, source trust, image clarity, license/usability, and caption fit.
+   - Download and insert the best approved image with:
+
+```bash
+python scripts/obsidian_image_helper.py download --vault <vault> --note <note> --url <image-url> --source-page <page-url> --caption "<short caption>" --insert
+```
 
 7. If no suitable local image exists.
    - If web/image-generation tools are available and the user allowed external sourcing, create or source a copyright-safe image, place it under the vault attachment folder, then insert it.
@@ -93,6 +107,7 @@ python scripts/obsidian_image_helper.py apply --vault <vault> --note <note> --im
    - Check that image captions are short, useful, and do not repeat nearby prose.
    - Avoid duplicate embeds and avoid putting decorative images between tightly related paragraphs.
    - For generated assets, confirm the output file exists inside the vault and the note uses a vault-relative link.
+   - For web-sourced images, confirm a `.source.md` sidecar or equivalent attribution record exists unless the user explicitly disabled it.
 
 ## Image Placement Rules
 
@@ -110,6 +125,7 @@ python scripts/obsidian_image_helper.py apply --vault <vault> --note <note> --im
 - Use stable asset subfolders when creating new files:
   - `Attachments/covers/`
   - `Attachments/illustrations/<note-slug>/`
+  - `Attachments/web-images/<note-slug>/`
   - `Attachments/infographics/`
   - `Attachments/diagrams/`
   - `Attachments/slides/<note-slug>/`
@@ -123,7 +139,9 @@ The script supports:
 
 - `inventory`: resolve embedded images and scan vault image candidates.
 - `suggest`: rank local images by note title, headings, tags, and filename/path overlap.
+- `web-query`: create web image search queries and match criteria from the note.
 - `apply`: insert one or more image embeds without duplicating existing links.
+- `download`: save a selected web image into the vault, write source metadata, and optionally insert it.
 
 Read `references/obsidian-image-workflow.md` when the task involves complex image sourcing, captions, or vault conventions.
 

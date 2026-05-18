@@ -22,6 +22,10 @@
   - 扫描 vault 内已有图片
   - 根据标题、标签、正文关键词推荐匹配图片
   - 自动插入 Obsidian wiki embed
+- 网上搜索相关图片
+  - 根据笔记分析结果生成图片搜索查询
+  - 对候选图片进行语义匹配、来源可信度、清晰度和可用授权判断
+  - 下载最匹配图片到 vault，并写入来源记录
 - 生成或协调视觉资产
   - 文章配图
   - 封面图
@@ -142,6 +146,28 @@ python scripts/obsidian_image_helper.py inventory --vault <vault> --note <note>
 python scripts/obsidian_image_helper.py suggest --vault <vault> --note <note> --limit 8
 ```
 
+### 根据笔记生成网上搜图查询
+
+```bash
+python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note>
+```
+
+Claude / Claudian 会用输出的 `primary_query` 和 `queries` 去搜索图片，并根据 `match_criteria` 选择最匹配的候选图。
+
+### 下载并插入网上图片
+
+```bash
+python scripts/obsidian_image_helper.py download --vault <vault> --note <note> --url <image-url> --source-page <page-url> --caption "<caption>" --insert
+```
+
+默认会保存到：
+
+```text
+Attachments/web-images/<note-slug>/
+```
+
+同时生成 `.source.md` 文件记录来源，方便之后追溯。
+
 ### 插入图片
 
 ```bash
@@ -161,6 +187,7 @@ python scripts/obsidian_image_helper.py apply --vault <vault> --note <note> --im
 ```text
 Attachments/covers/
 Attachments/illustrations/<note-slug>/
+Attachments/web-images/<note-slug>/
 Attachments/infographics/
 Attachments/diagrams/
 Attachments/slides/<note-slug>/
@@ -171,7 +198,8 @@ Slides/<note-slug>/
 
 - Obsidian 笔记是 source of truth。
 - 保留 wikilinks，尽量不破坏原有 vault 结构。
-- 优先使用 vault 内已有图片，再考虑生成或外部来源。
+- 优先使用 vault 内已有图片，再考虑网上搜索、生成或外部来源。
+- 网上图片必须保存来源记录，发布用途需要优先选择许可清晰的图片。
 - 视觉资产必须保存到 vault 内，并使用相对路径引用。
 - 不把 API key、cookie、平台凭据写进笔记。
 - 没有安装 baoyu-skills 时，仍能降级完成基础整理、翻译、SVG 图解或生成提示词。

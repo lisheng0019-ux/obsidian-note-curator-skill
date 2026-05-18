@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
-"""Resolve, suggest, and insert Obsidian note images."""
+"""Resolve, suggest, download, and insert Obsidian note images."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import mimetypes
 import os
 import re
 import shutil
 import sys
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
+from urllib.request import Request, urlopen
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".svg", ".avif"}
 EXCLUDED_DIRS = {".git", ".obsidian", ".trash", ".claude", ".claudian", ".codex", "node_modules"}
 COMMON_IMAGE_DIRS = ("Attachments", "attachments", "assets", "Assets", "images", "Images", "media", "Media", "resources", "Resources")
+MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024
 
 
 @dataclass
@@ -169,6 +173,20 @@ def extract_terms(text: str) -> list[str]:
     return output[:80]
 
 
+def first_heading_or_stem(text: str, note: Path) -> str:
+    match = re.search(r"^#\s+(.+)$", text, flags=re.MULTILINE)
+    if match:
+        return match.group(1).strip()
+    return note.stem
+
+
+def slugify(value: str, fallback: str = "image") -> str:
+    value = value.strip().lower()
+    value = re.sub(r"[^\w\u4e00-\u9fff-]+", "-", value, flags=re.UNICODE)
+    value = re.sub(r"-{2,}", "-", value).strip("-_")
+    return value[:80] or fallback
+
+
 def score_image(path: Path, vault: Path, terms: list[str]) -> tuple[int, list[str]]:
     rel = normalize_rel(path, vault).lower()
     searchable = re.sub(r"[_\-\.]+", " ", rel)
@@ -234,6 +252,180 @@ def suggest_images(vault: Path, note: Path, limit: int) -> dict:
             }
             for score, path, reasons in scored[:limit]
         ],
+    }
+
+
+def build_web_query_plan(vault: Path, note: Path) -> dict:
+    text = read_text(note)
+    title = first_heading_or_stem(text, note)
+    terms = extract_terms(text)
+    headings = [
+        heading.strip()
+        for heading in re.findall(r"^#{2,3}\s+(.+)$", text, flags=re.MULTILINE)
+        if heading.strip()
+    ][:6]
+    core_terms = [term for term in terms if len(term) >= 2][:10]
+    topic = " ".join([title, *core_terms[:4]]).strip()
+    if not topic:
+        topic = note.stem
+    queries = []
+    for suffix in ("illustration", "diagram", "infographic", "photo"):
+        queries.append(f"{topic} {suffix}".strip())
+    if re.search(r"[\u4e00-\u9fff]", text):
+        queries.insert(0, f"{topic} 配图")
+        queries.insert(1, f"{topic} 信息图")
+    seen: set[str] = set()
+    unique_queries: list[str] = []
+    for query in queries:
+        key = query.lower()
+        if key not in seen:
+            seen.add(key)
+            unique_queries.append(query)
+    note_slug = slugify(title or note.stem, "note")
+    return {
+        "vault": str(vault),
+        "note": str(note),
+        "title": title,
+        "headings": headings,
+        "terms_used": core_terms,
+        "target_folder": f"Attachments/web-images/{note_slug}",
+        "primary_query": unique_queries[0],
+        "queries": unique_queries[:6],
+        "match_criteria": [
+            "semantic match with the note title, headings, and core entities",
+            "clear subject matter that adds evidence or explanation, not decoration only",
+            "trustworthy source page and usable image license or user-approved use",
+            "sufficient resolution, no heavy watermark, no misleading crop",
+            "caption can honestly state what the image contributes to the note",
+        ],
+    }
+
+
+def extension_from_response(url: str, content_type: str | None) -> str:
+    parsed = urlparse(url)
+    path_ext = Path(unquote(parsed.path)).suffix.lower()
+    if path_ext in IMAGE_EXTS:
+        return ".jpg" if path_ext == ".jpeg" else path_ext
+    if content_type:
+        guessed = mimetypes.guess_extension(content_type.split(";", 1)[0].strip())
+        if guessed:
+            guessed = ".jpg" if guessed == ".jpe" else guessed.lower()
+            if guessed in IMAGE_EXTS:
+                return guessed
+    return ".jpg"
+
+
+def unique_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+    counter = 1
+    while True:
+        candidate = path.with_name(f"{path.stem}-{counter}{path.suffix}")
+        if not candidate.exists():
+            return candidate
+        counter += 1
+
+
+def safe_attachment_folder(vault: Path, folder_arg: str | None, note: Path) -> Path:
+    if folder_arg:
+        folder = vault / folder_arg
+    else:
+        note_slug = slugify(first_heading_or_stem(read_text(note), note), "note")
+        folder = vault / "Attachments" / "web-images" / note_slug
+    folder = folder.resolve()
+    try:
+        folder.relative_to(vault.resolve())
+    except ValueError as exc:
+        raise ValueError(f"Attachment folder must stay inside the vault: {folder}") from exc
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def download_url(url: str) -> tuple[bytes, str | None]:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("Only http and https image URLs are supported")
+    request = Request(url, headers={"User-Agent": "obsidian-note-curator/1.0"})
+    with urlopen(request, timeout=30) as response:
+        content_type = response.headers.get("Content-Type")
+        chunks = []
+        total = 0
+        while True:
+            chunk = response.read(64 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_DOWNLOAD_BYTES:
+                raise ValueError("Image download exceeds 20 MB limit")
+            chunks.append(chunk)
+    return b"".join(chunks), content_type
+
+
+def write_source_note(image_path: Path, vault: Path, note: Path, args: argparse.Namespace) -> Path:
+    source_path = image_path.with_suffix(f"{image_path.suffix}.source.md")
+    lines = [
+        "---",
+        f"sourceUrl: {json.dumps(args.url, ensure_ascii=False)}",
+        f"sourcePage: {json.dumps(args.source_page or '', ensure_ascii=False)}",
+        f"sourceTitle: {json.dumps(args.source_title or '', ensure_ascii=False)}",
+        f"downloadedAt: {datetime.now(timezone.utc).isoformat()}",
+        f"usedIn: {json.dumps(normalize_rel(note, vault), ensure_ascii=False)}",
+        "---",
+        "",
+        "Source metadata for a web image saved by obsidian-note-curator.",
+        "",
+    ]
+    write_text(source_path, "\n".join(lines))
+    return source_path
+
+
+def download_web_image(args: argparse.Namespace) -> dict:
+    vault = find_vault(Path(args.vault).resolve() if args.vault else None)
+    note = resolve_note(vault, args.note)
+    folder = safe_attachment_folder(vault, args.attachments_folder, note)
+    if args.dry_run:
+        return {
+            "changed": False,
+            "dry_run": True,
+            "note": str(note),
+            "target_folder": normalize_rel(folder, vault),
+            "url": args.url,
+            "insert": args.insert,
+        }
+    data, content_type = download_url(args.url)
+    if content_type and not content_type.lower().startswith("image/"):
+        parsed_ext = Path(unquote(urlparse(args.url).path)).suffix.lower()
+        if parsed_ext not in IMAGE_EXTS:
+            raise ValueError(f"URL did not return an image content type: {content_type}")
+    ext = extension_from_response(args.url, content_type)
+    base_name = slugify(args.filename or Path(unquote(urlparse(args.url).path)).stem or note.stem, "web-image")
+    destination = unique_path(folder / f"{base_name}{ext}")
+    destination.write_bytes(data)
+    source_note = None
+    if not args.no_source_note:
+        source_note = write_source_note(destination, vault, note, args)
+    insert_result = None
+    if args.insert:
+        insert_args = argparse.Namespace(
+            vault=str(vault),
+            note=str(note),
+            image=[str(destination)],
+            position=args.position,
+            heading=args.heading,
+            caption=args.caption,
+            attachments_folder=None,
+            copy=False,
+            dry_run=False,
+        )
+        insert_result = apply_images(insert_args)
+    return {
+        "changed": True,
+        "note": str(note),
+        "image": normalize_rel(destination, vault),
+        "absolute_path": str(destination),
+        "source_note": normalize_rel(source_note, vault) if source_note else None,
+        "content_type": content_type,
+        "insert_result": insert_result,
     }
 
 
@@ -330,7 +522,7 @@ def print_json(data: dict) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Resolve, suggest, and insert Obsidian note images.")
+    parser = argparse.ArgumentParser(description="Resolve, suggest, download, and insert Obsidian note images.")
     sub = parser.add_subparsers(dest="command", required=True)
 
     inv = sub.add_parser("inventory")
@@ -341,6 +533,10 @@ def main() -> int:
     sug.add_argument("--vault")
     sug.add_argument("--note", required=True)
     sug.add_argument("--limit", type=int, default=8)
+
+    webq = sub.add_parser("web-query")
+    webq.add_argument("--vault")
+    webq.add_argument("--note", required=True)
 
     app = sub.add_parser("apply")
     app.add_argument("--vault")
@@ -353,6 +549,21 @@ def main() -> int:
     app.add_argument("--copy", action="store_true")
     app.add_argument("--dry-run", action="store_true")
 
+    dl = sub.add_parser("download")
+    dl.add_argument("--vault")
+    dl.add_argument("--note", required=True)
+    dl.add_argument("--url", required=True)
+    dl.add_argument("--filename")
+    dl.add_argument("--source-page")
+    dl.add_argument("--source-title")
+    dl.add_argument("--caption")
+    dl.add_argument("--position", choices=["hero", "after-heading", "end"], default="hero")
+    dl.add_argument("--heading")
+    dl.add_argument("--attachments-folder")
+    dl.add_argument("--insert", action="store_true")
+    dl.add_argument("--no-source-note", action="store_true")
+    dl.add_argument("--dry-run", action="store_true")
+
     args = parser.parse_args()
     try:
         vault = find_vault(Path(args.vault).resolve() if getattr(args, "vault", None) else None)
@@ -360,8 +571,12 @@ def main() -> int:
             print_json(build_inventory(vault, resolve_note(vault, args.note)))
         elif args.command == "suggest":
             print_json(suggest_images(vault, resolve_note(vault, args.note), args.limit))
+        elif args.command == "web-query":
+            print_json(build_web_query_plan(vault, resolve_note(vault, args.note)))
         elif args.command == "apply":
             print_json(apply_images(args))
+        elif args.command == "download":
+            print_json(download_web_image(args))
     except Exception as exc:
         print(json.dumps({"error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 1
