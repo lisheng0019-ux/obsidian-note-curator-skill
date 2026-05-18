@@ -5,18 +5,22 @@ Use this reference when an Obsidian note needs translation, generated visuals, d
 ## General Rules
 
 1. Keep the source note unchanged unless the user asks for in-place rewriting.
-2. Save generated files under the vault, preferably:
-   - Covers: `<attachment-base>/covers/`
-   - Article illustrations: `<attachment-base>/illustrations/<note-slug>/`
-   - Infographics: `<attachment-base>/infographics/`
-   - Diagrams: `<attachment-base>/diagrams/`
-   - Slide assets: `<attachment-base>/slides/<note-slug>/`
+2. Before saving generated visuals, run `scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>` and use the returned paths.
+3. Save generated files under the note-specific asset root:
+   - Asset root: `<attachment-base>/<笔记标题>-封面-插图/`
+   - Covers: `<asset-root>/封面/`
+   - Article illustrations: `<asset-root>/插图/`
+   - Infographics: `<asset-root>/信息图/`
+   - Diagrams: `<asset-root>/图解/`
+   - Slide assets: `<asset-root>/幻灯片/`
    - Slide outlines or decks: `Slides/<note-slug>/`
    - Use `config/defaults.json` `attachments_folder` as `<attachment-base>` when present.
-3. Insert generated images with `scripts/obsidian_image_helper.py apply`.
-4. Update frontmatter only for stable metadata such as `coverImage`, `translationOf`, `language`, `visualAssets`, or `slideDeck`.
-5. Keep external API keys, cookies, and platform credentials outside the note. Never paste secrets into Markdown.
-6. If a baoyu skill asks for first-time setup, complete that setup before generation. If setup is not possible, fall back to a prompt-only or outline-only result.
+4. Generated images should use Chinese for visible text by default: titles, labels, callouts, legends, and diagram wording.
+5. Insert generated images with `scripts/obsidian_image_helper.py apply`.
+6. Update frontmatter only for stable metadata such as `coverImage`, `translationOf`, `language`, `visualAssets`, or `slideDeck`.
+7. Keep external API keys, cookies, platform credentials, and raw image prompts outside the note. Never paste secrets or prompts into Markdown.
+8. If prompts must be preserved, save them under `<asset-root>/prompts/` as sidecars and do not link them from the note unless the user asks.
+9. If a baoyu skill asks for first-time setup, complete that setup before generation. If setup is not possible, fall back to an outline-only result in chat, not prompt text inserted into the note.
 
 ## Translation
 
@@ -58,7 +62,7 @@ Workflow:
    - Use the user's explicit style when provided.
    - Use automatic scene style when requested: `technical-schematic` for systems, `infographic` for dense summaries, `editorial` for essays, `minimal` for sparse references, and `photo` for real-world subjects.
 3. Prefer visual explanations over decoration.
-4. Generate or collect images into `Attachments/illustrations/<note-slug>/`.
+4. Generate or collect images into `<asset-root>/插图/`.
 5. Insert each image near the section it supports:
 
 ```bash
@@ -77,11 +81,11 @@ Workflow:
 
 1. Summarize the note into one strong visual concept.
 2. Use `hand-drawn` cover style by default unless the user specifies another style or asks for automatic scene styling.
-3. Generate a cover into `Attachments/covers/<note-slug>.png`.
+3. Generate a cover into `<asset-root>/封面/<note-slug>.png`.
 4. Update or add frontmatter:
 
 ```yaml
-coverImage: Attachments/covers/<note-slug>.png
+coverImage: <asset-root-relative-path>/封面/<note-slug>.png
 ```
 
 5. Insert the cover as a hero image only if the user wants it visible in the note body. Otherwise keep it as frontmatter metadata.
@@ -96,7 +100,7 @@ Workflow:
 
 1. Identify the information structure: timeline, comparison, funnel, tree, mind map, pyramid, grid, or process.
 2. Use `infographic` style for dense visual summaries, `hand-drawn` for softer learning notes, or automatic scene style when requested.
-3. Generate one image into `Attachments/infographics/<note-slug>-<topic>.png`.
+3. Generate one image into `<asset-root>/信息图/<note-slug>-<topic>.png`.
 4. Insert the infographic after the note summary or after the section it visualizes.
 5. Add a short caption explaining what the visual helps the reader understand.
 
@@ -109,7 +113,7 @@ Preferred engine: `baoyu-diagram`.
 Workflow:
 
 1. Choose SVG for technical/conceptual diagrams.
-2. Save the generated diagram to `Attachments/diagrams/<note-slug>-<diagram-type>.svg`.
+2. Save the generated diagram to `<asset-root>/图解/<note-slug>-<diagram-type>.svg`.
 3. Insert with a wiki embed:
 
 ```markdown
@@ -132,14 +136,14 @@ Workflow:
    - `images`: generate slide images.
    - `deck`: generate or assemble a deck if the runtime supports it.
 2. Save outlines/deck material under `Slides/<note-slug>/`.
-3. Save slide images under `Attachments/slides/<note-slug>/`.
+3. Save slide images under `<asset-root>/幻灯片/`.
 4. Add a section near the end of the source note:
 
 ```markdown
 ## Related deck
 
 - [[Slides/<note-slug>/outline|Slide outline]]
-- ![[Attachments/slides/<note-slug>/01-title.png|Title slide]]
+- ![[<asset-root-relative-path>/幻灯片/01-title.png|Title slide]]
 ```
 
 5. Keep slide generation separate from note rewriting. Do not turn the original note into slide bullets unless the user asks.
@@ -149,7 +153,7 @@ Workflow:
 If the relevant baoyu skill is not installed:
 
 - Translation: perform translation directly and save sidecar notes.
-- Illustrations/covers/infographics: generate a prompt file next to the note or use the runtime-native image tool if available.
+- Illustrations/covers/infographics: use the runtime-native image tool if available; otherwise describe the missing generation step in the response instead of adding prompts to the note.
 - Diagrams: create a standalone SVG directly when appropriate.
 - Slides: create a Markdown slide outline and, if possible, render images later.
 

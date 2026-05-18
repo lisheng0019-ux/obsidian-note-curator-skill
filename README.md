@@ -96,7 +96,10 @@ config/defaults.json
   "vault_root": "D:\\path\\to\\your\\vault",
   "attachments_folder": "D:\\path\\to\\your\\vault\\图片",
   "default_image_style": "hand-drawn",
-  "image_style_mode": "default"
+  "image_style_mode": "default",
+  "generated_asset_folder_pattern": "{note-title}-封面-插图",
+  "generated_image_text_language": "zh-CN",
+  "write_generation_prompts_to_note": false
 }
 ```
 
@@ -104,10 +107,12 @@ config/defaults.json
 
 `default_image_style` 控制默认插图/生成图风格，默认值为 `hand-drawn`。`image_style_mode` 设为 `auto` 时，会让 Claude 根据笔记场景自动选择更合适的图片风格。
 
+`generated_asset_folder_pattern` 控制生成资产目录，默认会按“笔记标题-封面-插图”创建笔记专属图片文件夹。`generated_image_text_language` 默认 `zh-CN`，表示生成图片里的标题、标签、说明文字优先使用中文。`write_generation_prompts_to_note` 默认为 `false`，避免把提示词写进笔记正文，污染 Obsidian 关系图谱。
+
 网上搜索下载的图片默认会放到：
 
 ```text
-<attachments_folder>\web-images\<note-slug>\
+<attachments_folder>\<笔记标题>-封面-插图\网页图片\
 ```
 
 ## 依赖
@@ -186,6 +191,27 @@ python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note>
 
 Claude / Claudian 会用输出的 `primary_query` 和 `queries` 去搜索图片，并根据 `match_criteria` 选择最匹配的候选图。
 
+### 查看当前笔记的视觉资产目录规划
+
+```bash
+python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>
+```
+
+默认返回的目录结构类似：
+
+```text
+图片/<笔记标题>-封面-插图/
+图片/<笔记标题>-封面-插图/封面/
+图片/<笔记标题>-封面-插图/插图/
+图片/<笔记标题>-封面-插图/网页图片/
+图片/<笔记标题>-封面-插图/信息图/
+图片/<笔记标题>-封面-插图/图解/
+图片/<笔记标题>-封面-插图/幻灯片/
+图片/<笔记标题>-封面-插图/prompts/
+```
+
+`prompts/` 只用于必要时保存旁路提示词文件，不会自动插入到笔记结构中。
+
 指定图片风格：
 
 ```bash
@@ -216,7 +242,7 @@ python scripts/obsidian_image_helper.py download --vault <vault> --note <note> -
 默认会保存到：
 
 ```text
-Attachments/web-images/<note-slug>/
+图片/<笔记标题>-封面-插图/网页图片/
 ```
 
 同时生成 `.source.md` 文件记录来源，方便之后追溯。
@@ -238,12 +264,13 @@ python scripts/obsidian_image_helper.py apply --vault <vault> --note <note> --im
 为方便 Obsidian 后续管理，建议生成资产放在这些目录：
 
 ```text
-Attachments/covers/
-Attachments/illustrations/<note-slug>/
-图片/web-images/<note-slug>/
-Attachments/infographics/
-Attachments/diagrams/
-Attachments/slides/<note-slug>/
+图片/<笔记标题>-封面-插图/封面/
+图片/<笔记标题>-封面-插图/插图/
+图片/<笔记标题>-封面-插图/网页图片/
+图片/<笔记标题>-封面-插图/信息图/
+图片/<笔记标题>-封面-插图/图解/
+图片/<笔记标题>-封面-插图/幻灯片/
+图片/<笔记标题>-封面-插图/prompts/
 Slides/<note-slug>/
 ```
 
@@ -254,6 +281,8 @@ Slides/<note-slug>/
 - 优先使用 vault 内已有图片，再考虑网上搜索、生成或外部来源。
 - 网上图片必须保存来源记录，发布用途需要优先选择许可清晰的图片。
 - 视觉资产必须保存到 vault 内，并使用相对路径引用。
+- 生成图片内的可见文字默认使用中文。
+- 提示词不写入笔记正文；需要留档时只保存到 `prompts/` 旁路目录。
 - 不把 API key、cookie、平台凭据写进笔记。
 - 没有安装 baoyu-skills 时，仍能降级完成基础整理、翻译、SVG 图解或生成提示词。
 

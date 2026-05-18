@@ -2,5 +2,8 @@
   "vault_root": "D:\\path\\to\\your\\vault",
   "attachments_folder": "D:\\path\\to\\your\\vault\\图片",
   "default_image_style": "hand-drawn",
-  "image_style_mode": "default"
+  "image_style_mode": "default",
+  "generated_asset_folder_pattern": "{note-title}-封面-插图",
+  "generated_image_text_language": "zh-CN",
+  "write_generation_prompts_to_note": false
 }

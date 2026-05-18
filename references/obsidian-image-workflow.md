@@ -73,7 +73,7 @@ python scripts/obsidian_image_helper.py download --vault <vault> --note <note> -
 
 6. Re-run `inventory` and verify the embed resolves.
 
-The `download` command stores web images under `Attachments/web-images/<note-slug>/` by default and writes a `.source.md` sidecar with source metadata. Keep that sidecar unless the user explicitly asks not to preserve attribution.
+The `download` command stores web images under the note-specific asset folder by default and writes a `.source.md` sidecar with source metadata. Keep that sidecar unless the user explicitly asks not to preserve attribution.
 
 Reject search results when licensing is unclear and the note is intended for publishing. For private research notes, still preserve source metadata so the user can revisit the origin later.
 
@@ -94,16 +94,39 @@ Use a user-provided style exactly when the user specifies one. Use automatic sce
 
 For generated images, put the chosen style directly in the generation prompt. For web images, prefer matching style but do not let style outrank truthfulness, source quality, or note relevance.
 
+## Generated image language and prompt hygiene
+
+- Generated images should use Chinese for visible text by default: titles, labels, callouts, diagram nodes, legends, and captions rendered inside the image.
+- Use another language only when the user explicitly asks or the source note requires preserving a proper noun, brand, code symbol, or original quote.
+- Do not insert generation prompts into the Obsidian note body.
+- Do not add prompt sections, prompt backlinks, prompt tags, or prompt-only notes that would clutter graph view.
+- If a prompt must be saved for reproducibility, save it under the prompt sidecar folder returned by `asset-plan`, and do not link it from the note unless the user asks.
+
 ## Generated asset folders
 
 Use stable folders so future runs can find and reuse generated assets. If `config/defaults.json` defines `attachments_folder`, place these folders under that configured attachment base; otherwise place them under `Attachments/`.
 
-- Covers: `covers/`
-- Article illustrations: `illustrations/<note-slug>/`
-- Web-sourced images: `web-images/<note-slug>/`
-- Infographics: `infographics/`
-- Diagrams: `diagrams/`
-- Slide images: `slides/<note-slug>/`
+Before saving generated or web-sourced visual assets, run:
+
+```bash
+python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>
+```
+
+The default asset root is:
+
+```text
+<attachment-base>/<笔记标题>-封面-插图/
+```
+
+Use these subfolders:
+
+- Covers: `<笔记标题>-封面-插图/封面/`
+- Article illustrations: `<笔记标题>-封面-插图/插图/`
+- Web-sourced images: `<笔记标题>-封面-插图/网页图片/`
+- Infographics: `<笔记标题>-封面-插图/信息图/`
+- Diagrams: `<笔记标题>-封面-插图/图解/`
+- Slide images: `<笔记标题>-封面-插图/幻灯片/`
+- Prompt sidecars, only when needed: `<笔记标题>-封面-插图/prompts/`
 
 Prefer descriptive filenames such as `retrieval-augmented-generation-flow.svg` over generic names such as `image1.png`.
 

@@ -22,13 +22,18 @@ Read `config/defaults.json` before saving or downloading images. This installati
   "vault_root": "<absolute path to the Obsidian vault>",
   "attachments_folder": "<absolute path inside the vault>",
   "default_image_style": "hand-drawn",
-  "image_style_mode": "default"
+  "image_style_mode": "default",
+  "generated_asset_folder_pattern": "{note-title}-\u5c01\u9762-\u63d2\u56fe",
+  "generated_image_text_language": "zh-CN",
+  "write_generation_prompts_to_note": false
 }
 ```
 
-When present, use `vault_root` as the default vault if `--vault` is omitted, and use `attachments_folder` as the default Obsidian image attachment base. The attachment folder must stay inside the target vault. Web-sourced images should be saved under `web-images/<note-slug>/` inside that base folder unless the user passes an explicit `--attachments-folder`.
+When present, use `vault_root` as the default vault if `--vault` is omitted, and use `attachments_folder` as the default Obsidian image attachment base. The attachment folder must stay inside the target vault. Web-sourced and generated images should be saved under the note-specific asset folder inside that base folder unless the user passes an explicit `--attachments-folder`.
 
 Use `default_image_style` as the default style for inserted or generated images. The default is `hand-drawn`. When `image_style_mode` is `auto`, choose a scene-appropriate style from the note context unless the user explicitly names a style.
+
+Use `generated_asset_folder_pattern` for note-specific visual asset folders. The default pattern names the folder from the analyzed note title plus the Chinese words for cover and illustration. Use `generated_image_text_language` for visible text inside generated images; default to Chinese. Keep `write_generation_prompts_to_note` false unless the user explicitly asks to put prompts in the note.
 
 ## Capability Router
 
@@ -79,6 +84,15 @@ python scripts/obsidian_image_helper.py inventory --vault <vault> --note <note>
    - Keep original claims traceable; do not silently discard important information.
 
 5. Run specialized enrichment when requested.
+   - Before generating visual assets, run:
+
+```bash
+python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>
+```
+
+   - Use the returned folders for covers, illustrations, infographics, diagrams, slide images, and prompt sidecars.
+   - Make visible text inside generated images Chinese by default.
+   - Do not insert image-generation prompts into the note body.
    - Translation: see [content enrichment workflows](references/baoyu-content-workflows.md#translation).
    - Illustrations: see [content enrichment workflows](references/baoyu-content-workflows.md#article-illustrations).
    - Cover images: see [content enrichment workflows](references/baoyu-content-workflows.md#cover-images).
@@ -118,8 +132,8 @@ python scripts/obsidian_image_helper.py download --vault <vault> --note <note> -
 ```
 
 7. If no suitable local image exists.
-   - If web/image-generation tools are available and the user allowed external sourcing, create or source a copyright-safe image, place it under the vault attachment folder, then insert it.
-   - Otherwise add a short "image_needed" note or provide a generation prompt instead of fabricating a file.
+   - If web/image-generation tools are available and the user allowed external sourcing, create or source a copyright-safe image, place it under the note-specific asset folder, then insert it.
+   - Otherwise report the missing image need in the response. Do not add prompt text or "image_needed" notes into the Markdown file unless the user asks.
 
 8. Validate.
    - Re-run `inventory` and confirm all inserted images resolve.
@@ -140,8 +154,16 @@ python scripts/obsidian_image_helper.py download --vault <vault> --note <note> -
   - `minimal`: checklists, memos, reference notes, sparse executive summaries.
   - `photo`: real people, places, products, events, objects, field notes.
 - For generated images, include the selected style and the helper script's `prompt_modifier` in the image prompt.
+- For generated images, require visible text, labels, titles, callouts, and diagram wording to be Chinese unless the user explicitly asks for another language.
 - For web image search, prefer candidates that match the selected style, but never choose a weaker or misleading image only for style.
 - For existing local images, treat style as a preference. Relevance and accuracy come first.
+
+## Prompt And Graph Hygiene
+
+- Never insert raw image prompts, prompt drafts, negative prompts, model settings, or generation logs into the note body.
+- Do not add prompt-only sections, prompt backlinks, or prompt tags to the note. This keeps Obsidian graph view clean.
+- If prompts must be preserved, save them as sidecar files under the asset plan's `prompt_sidecar_folder`, not as linked notes.
+- Insert only final assets, concise captions, and stable metadata such as `coverImage` or `visualAssets`.
 
 ## Image Placement Rules
 
@@ -157,13 +179,9 @@ python scripts/obsidian_image_helper.py download --vault <vault> --note <note> -
 - Use relative paths from the vault root, with forward slashes.
 - Keep attachments inside the user's existing attachment folder when obvious; otherwise use `Attachments/`.
 - If `config/defaults.json` defines `attachments_folder`, treat it as the default attachment folder.
-- Use stable asset subfolders under the configured attachment base when creating new image files:
-  - `covers/`
-  - `illustrations/<note-slug>/`
-  - `web-images/<note-slug>/`
-  - `infographics/`
-  - `diagrams/`
-  - `slides/<note-slug>/`
+- Use the stable asset subfolders returned by `asset-plan` when creating new image files.
+- The default `<note-asset-folder>` is the analyzed note title plus the Chinese words for cover and illustration.
+- Use the prompt sidecar folder only for prompt files that are not inserted into the note.
 - Do not edit `.obsidian/`, plugin settings, or hidden provider folders unless explicitly asked.
 - Do not rename existing notes or images unless the user asks.
 - Do not overwrite generated assets unless the user asks; append a short suffix or timestamp on conflict.
@@ -175,6 +193,7 @@ The script supports:
 - `inventory`: resolve embedded images and scan vault image candidates.
 - `suggest`: rank local images by note title, headings, tags, and filename/path overlap.
 - `web-query`: create web image search queries and match criteria from the note.
+- `asset-plan`: return the note-specific visual asset folders and prompt policy.
 - `apply`: insert one or more image embeds without duplicating existing links.
 - `download`: save a selected web image into the vault, write source metadata, and optionally insert it.
 

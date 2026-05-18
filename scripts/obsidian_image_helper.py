@@ -24,6 +24,8 @@ MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024
 SKILL_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = SKILL_DIR / "config" / "defaults.json"
 DEFAULT_IMAGE_STYLE = "hand-drawn"
+DEFAULT_ASSET_FOLDER_PATTERN = "{note-title}-封面-插图"
+DEFAULT_GENERATED_IMAGE_TEXT_LANGUAGE = "zh-CN"
 STYLE_PRESETS = {
     "hand-drawn": {
         "label": "hand-drawn",
@@ -121,6 +123,32 @@ def configured_style_mode() -> str:
     value = value.strip().lower()
     if value not in {"default", "auto"}:
         raise ValueError("image_style_mode must be 'default' or 'auto'")
+    return value
+
+
+def configured_asset_folder_pattern() -> str:
+    config = load_config()
+    value = config.get("generated_asset_folder_pattern") or config.get("asset_folder_pattern") or DEFAULT_ASSET_FOLDER_PATTERN
+    if not isinstance(value, str):
+        raise ValueError("generated_asset_folder_pattern in config/defaults.json must be a string")
+    return value.strip() or DEFAULT_ASSET_FOLDER_PATTERN
+
+
+def configured_generated_image_text_language() -> str:
+    config = load_config()
+    value = config.get("generated_image_text_language") or DEFAULT_GENERATED_IMAGE_TEXT_LANGUAGE
+    if not isinstance(value, str):
+        raise ValueError("generated_image_text_language in config/defaults.json must be a string")
+    return value.strip() or DEFAULT_GENERATED_IMAGE_TEXT_LANGUAGE
+
+
+def configured_write_generation_prompts_to_note() -> bool:
+    config = load_config()
+    value = config.get("write_generation_prompts_to_note")
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        raise ValueError("write_generation_prompts_to_note in config/defaults.json must be a boolean")
     return value
 
 
@@ -359,6 +387,28 @@ def slugify(value: str, fallback: str = "image") -> str:
     return value[:80] or fallback
 
 
+def note_asset_folder_name(note: Path, text: str) -> str:
+    title = first_heading_or_stem(text, note)
+    title_slug = slugify(title, slugify(note.stem, "note"))
+    stem_slug = slugify(note.stem, title_slug)
+    pattern = configured_asset_folder_pattern()
+    folder_name = (
+        pattern.replace("{note-title}", title_slug)
+        .replace("{note-slug}", title_slug)
+        .replace("{note-stem}", stem_slug)
+    )
+    return slugify(folder_name, f"{title_slug}-封面-插图")
+
+
+def note_asset_folder(vault: Path, note: Path, subfolder: str | None = None, create: bool = True) -> Path:
+    text = read_text(note)
+    root = resolve_attachment_base(vault, None, create=create) / note_asset_folder_name(note, text)
+    folder = root / subfolder if subfolder else root
+    if create:
+        folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
 def score_image(path: Path, vault: Path, terms: list[str]) -> tuple[int, list[str]]:
     rel = normalize_rel(path, vault).lower()
     searchable = re.sub(r"[_\-\.]+", " ", rel)
@@ -456,8 +506,7 @@ def build_web_query_plan(vault: Path, note: Path, style_arg: str | None = None, 
         if key not in seen:
             seen.add(key)
             unique_queries.append(query)
-    note_slug = slugify(title or note.stem, "note")
-    target_folder = resolve_attachment_base(vault, None, create=False) / "web-images" / note_slug
+    target_folder = note_asset_folder(vault, note, "网页图片", create=False)
     style_queries = [f"{topic} {term}".strip() for term in style_plan["search_terms"]]
     return {
         "vault": str(vault),
@@ -466,6 +515,7 @@ def build_web_query_plan(vault: Path, note: Path, style_arg: str | None = None, 
         "headings": headings,
         "terms_used": core_terms,
         "target_folder": normalize_rel(target_folder, vault),
+        "asset_plan": build_asset_plan(vault, note, create=False),
         "image_style": style_plan,
         "primary_query": unique_queries[0],
         "queries": unique_queries[:6],
@@ -523,13 +573,36 @@ def resolve_attachment_base(vault: Path, folder_arg: str | None, create: bool = 
     return folder
 
 
+def build_asset_plan(vault: Path, note: Path, create: bool = False) -> dict:
+    root = note_asset_folder(vault, note, None, create=create)
+    folders = {
+        "asset_root": root,
+        "cover_folder": root / "封面",
+        "illustration_folder": root / "插图",
+        "web_image_folder": root / "网页图片",
+        "infographic_folder": root / "信息图",
+        "diagram_folder": root / "图解",
+        "slide_image_folder": root / "幻灯片",
+        "prompt_sidecar_folder": root / "prompts",
+    }
+    if create:
+        for folder in folders.values():
+            folder.mkdir(parents=True, exist_ok=True)
+    return {
+        "note": str(note),
+        "generated_image_text_language": configured_generated_image_text_language(),
+        "write_generation_prompts_to_note": configured_write_generation_prompts_to_note(),
+        "folder_pattern": configured_asset_folder_pattern(),
+        "folders": {key: normalize_rel(path, vault) for key, path in folders.items()},
+        "prompt_policy": "Do not insert generation prompts into the note body. Save prompt sidecars only when needed.",
+    }
+
+
 def safe_attachment_folder(vault: Path, folder_arg: str | None, note: Path) -> Path:
     if folder_arg:
         folder = resolve_attachment_base(vault, folder_arg, create=True)
     else:
-        note_slug = slugify(first_heading_or_stem(read_text(note), note), "note")
-        folder = resolve_attachment_base(vault, None, create=True) / "web-images" / note_slug
-        folder.mkdir(parents=True, exist_ok=True)
+        folder = note_asset_folder(vault, note, "网页图片", create=True)
     return folder
 
 
@@ -734,6 +807,11 @@ def main() -> int:
     sug.add_argument("--note", required=True)
     sug.add_argument("--limit", type=int, default=8)
 
+    asset = sub.add_parser("asset-plan")
+    asset.add_argument("--vault")
+    asset.add_argument("--note", required=True)
+    asset.add_argument("--create", action="store_true")
+
     webq = sub.add_parser("web-query")
     webq.add_argument("--vault")
     webq.add_argument("--note", required=True)
@@ -775,6 +853,8 @@ def main() -> int:
             print_json(build_inventory(vault, resolve_note(vault, args.note)))
         elif args.command == "suggest":
             print_json(suggest_images(vault, resolve_note(vault, args.note), args.limit))
+        elif args.command == "asset-plan":
+            print_json(build_asset_plan(vault, resolve_note(vault, args.note), args.create))
         elif args.command == "web-query":
             print_json(build_web_query_plan(vault, resolve_note(vault, args.note), args.style, args.style_mode))
         elif args.command == "apply":
