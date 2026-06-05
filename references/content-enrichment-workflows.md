@@ -10,18 +10,21 @@ Use this reference when an Obsidian note needs translation, generated visuals, d
    - Use `image_format.aspect_ratio`, `image_format.file_format`, and `image_format.target_folder` as the generation/save plan.
 3. Save generated files under the note-specific asset root:
    - Asset root: `<attachment-base>/<笔记标题>-封面-插图/`
-   - Covers: `<asset-root>/封面/`
-   - Article illustrations: `<asset-root>/插图/`
-   - Infographics: `<asset-root>/信息图/`
-   - Diagrams: `<asset-root>/图解/`
-   - Slide assets: `<asset-root>/幻灯片/`
+   - Original note images copied or normalized during cleanup: `<asset-root>/原文图片/`
+   - Web-sourced images: `<asset-root>/网页图片/`
+   - AI image root: `<asset-root>/AI图/`
+   - AI covers: `<asset-root>/AI图/封面/`
+   - AI article illustrations: `<asset-root>/AI图/插图/`
+   - AI infographics: `<asset-root>/AI图/信息图/`
+   - AI diagrams: `<asset-root>/AI图/图解/`
+   - AI slide assets: `<asset-root>/AI图/幻灯片/`
    - Slide outlines or decks: `Slides/<note-slug>/`
    - Use `config/defaults.json` `attachments_folder` as `<attachment-base>` when present.
 4. Generated images should use Chinese for visible text by default: titles, labels, callouts, legends, and diagram wording.
 5. Insert generated images with `scripts/obsidian_image_helper.py apply`.
 6. Update frontmatter only for stable metadata such as `coverImage`, `translationOf`, `language`, `visualAssets`, or `slideDeck`.
 7. Keep external API keys, cookies, platform credentials, and raw image prompts outside the note. Never paste secrets or prompts into Markdown.
-8. If prompts must be preserved, save them under `<asset-root>/prompts/` as sidecars and do not link them from the note unless the user asks.
+8. If prompts must be preserved, save them under `<asset-root>/AI图/prompts/` as sidecars and do not link them from the note unless the user asks.
 9. If image generation is not available, describe the missing generation step in the response or create an outline-only result in chat. Do not insert prompt text into the note.
 
 ## Translation
@@ -60,7 +63,7 @@ Workflow:
    - Use the user's explicit style when provided.
    - Use automatic scene style when requested: `technical-schematic` for systems, `infographic` for dense summaries, `editorial` for essays, `minimal` for sparse references, and `photo` for real-world subjects.
 3. Prefer visual explanations over decoration.
-4. Generate or collect images into `image_format.target_folder`, normally `<asset-root>/插图/`, using the returned aspect ratio and file format.
+4. Generate AI images into `image_format.target_folder`, normally `<asset-root>/AI图/插图/`, using the returned aspect ratio and file format. Web-sourced section images stay in `<asset-root>/网页图片/`.
 5. Insert each image near the section it supports:
 
 ```bash
@@ -77,11 +80,11 @@ Workflow:
 
 1. Summarize the note into one strong visual concept.
 2. Use `hand-drawn` cover style by default unless the user specifies another style or asks for automatic scene styling.
-3. Run `asset-plan --asset-kind cover` and generate a `16:9` PNG cover into `<asset-root>/封面/<note-slug>.png` unless config overrides the aspect ratio.
+3. Run `asset-plan --asset-kind cover` and generate a `16:9` PNG cover into `<asset-root>/AI图/封面/<note-slug>.png` unless config overrides the aspect ratio.
 4. Update or add frontmatter:
 
 ```yaml
-coverImage: <asset-root-relative-path>/封面/<note-slug>.png
+coverImage: <asset-root-relative-path>/AI图/封面/<note-slug>.png
 ```
 
 5. Insert the cover as a hero image only if the user wants it visible in the note body. Otherwise keep it as frontmatter metadata.
@@ -94,7 +97,7 @@ Workflow:
 
 1. Identify the information structure: timeline, comparison, funnel, tree, mind map, pyramid, grid, or process.
 2. Use `infographic` style for dense visual summaries, `hand-drawn` for softer learning notes, or automatic scene style when requested.
-3. Run `asset-plan --asset-kind infographic` and generate one `3:4` PNG into `<asset-root>/信息图/<note-slug>-<topic>.png` unless config overrides the aspect ratio.
+3. Run `asset-plan --asset-kind infographic` and generate one `3:4` PNG into `<asset-root>/AI图/信息图/<note-slug>-<topic>.png` unless config overrides the aspect ratio.
 4. Insert the infographic after the note summary or after the section it visualizes.
 5. Add a short caption explaining what the visual helps the reader understand.
 
@@ -106,11 +109,11 @@ Workflow:
 
 1. Run `asset-plan --asset-kind diagram`.
 2. Choose SVG for technical/conceptual diagrams when exact text and reusable markup matter. Choose generated raster images when the user wants illustration style.
-3. Save the generated diagram to `<asset-root>/图解/<note-slug>-<diagram-type>.<ext>` using `image_format.file_format`.
+3. Save the generated diagram to `<asset-root>/AI图/图解/<note-slug>-<diagram-type>.<ext>` using `image_format.file_format`.
 4. Insert with a wiki embed:
 
 ```markdown
-![[<asset-root-relative-path>/图解/<file>|<caption>]]
+![[<asset-root-relative-path>/AI图/图解/<file>|<caption>]]
 ```
 
 5. If the note already has Mermaid, PlantUML, or ASCII diagrams, decide whether to preserve them as source and add the visual diagram as a rendered companion.
@@ -127,14 +130,14 @@ Workflow:
    - `images`: generate slide images.
    - `deck`: generate or assemble a deck if the runtime supports it.
 2. Save outlines/deck material under `Slides/<note-slug>/`.
-3. Run `asset-plan --asset-kind slide` and save `16:9` PNG slide images under `<asset-root>/幻灯片/` unless config overrides the aspect ratio.
+3. Run `asset-plan --asset-kind slide` and save `16:9` PNG slide images under `<asset-root>/AI图/幻灯片/` unless config overrides the aspect ratio.
 4. Add a section near the end of the source note only if the user wants deck links in the note:
 
 ```markdown
 ## Related deck
 
 - [[Slides/<note-slug>/outline|Slide outline]]
-- ![[<asset-root-relative-path>/幻灯片/01-title.png|Title slide]]
+- ![[<asset-root-relative-path>/AI图/幻灯片/01-title.png|Title slide]]
 ```
 
 5. Keep slide generation separate from note rewriting. Do not turn the original note into slide bullets unless the user asks.

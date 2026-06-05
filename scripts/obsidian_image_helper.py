@@ -135,12 +135,15 @@ FORMAT_PRESETS = {
     },
 }
 ASSET_SUBFOLDERS = {
-    "cover_folder": "封面",
-    "illustration_folder": "插图",
+    "original_image_folder": "原文图片",
     "web_image_folder": "网页图片",
-    "infographic_folder": "信息图",
-    "diagram_folder": "图解",
-    "slide_image_folder": "幻灯片",
+    "ai_image_root": "AI图",
+    "cover_folder": "AI图/封面",
+    "illustration_folder": "AI图/插图",
+    "infographic_folder": "AI图/信息图",
+    "diagram_folder": "AI图/图解",
+    "slide_image_folder": "AI图/幻灯片",
+    "prompt_sidecar_folder": "AI图/prompts",
 }
 
 
@@ -824,7 +827,7 @@ def build_web_query_plan(
         if key not in seen:
             seen.add(key)
             unique_queries.append(query)
-    target_folder = note_asset_folder(vault, note, asset_subfolder_for_folder_key(format_plan["folder_key"]), create=False)
+    target_folder = note_asset_folder(vault, note, ASSET_SUBFOLDERS["web_image_folder"], create=False)
     style_queries = [f"{topic} {term}".strip() for term in style_plan["search_terms"]]
     return {
         "vault": str(vault),
@@ -833,6 +836,7 @@ def build_web_query_plan(
         "headings": headings,
         "terms_used": core_terms,
         "target_folder": normalize_rel(target_folder, vault),
+        "target_folder_role": "web-sourced images",
         "asset_plan": build_asset_plan(vault, note, create=False, asset_kind_arg=asset_kind_arg),
         "image_style": style_plan,
         "image_format": format_plan,
@@ -901,13 +905,15 @@ def build_asset_plan(vault: Path, note: Path, create: bool = False, asset_kind_a
     root = note_asset_folder(vault, note, None, create=create)
     folders = {
         "asset_root": root,
+        "original_image_folder": root / ASSET_SUBFOLDERS["original_image_folder"],
+        "web_image_folder": root / ASSET_SUBFOLDERS["web_image_folder"],
+        "ai_image_root": root / ASSET_SUBFOLDERS["ai_image_root"],
         "cover_folder": root / ASSET_SUBFOLDERS["cover_folder"],
         "illustration_folder": root / ASSET_SUBFOLDERS["illustration_folder"],
-        "web_image_folder": root / ASSET_SUBFOLDERS["web_image_folder"],
         "infographic_folder": root / ASSET_SUBFOLDERS["infographic_folder"],
         "diagram_folder": root / ASSET_SUBFOLDERS["diagram_folder"],
         "slide_image_folder": root / ASSET_SUBFOLDERS["slide_image_folder"],
-        "prompt_sidecar_folder": root / "prompts",
+        "prompt_sidecar_folder": root / ASSET_SUBFOLDERS["prompt_sidecar_folder"],
     }
     if create:
         for folder in folders.values():
@@ -921,6 +927,11 @@ def build_asset_plan(vault: Path, note: Path, create: bool = False, asset_kind_a
         "image_format": format_plan,
         "folder_pattern": configured_asset_folder_pattern(),
         "folders": normalized_folders,
+        "source_policy": {
+            "original_note_images": "Use original_image_folder when copying or normalizing images that already existed in the source note.",
+            "web_sourced_images": "Use web_image_folder for images downloaded from web search.",
+            "ai_generated_images": "Use ai_image_root and its routed subfolders for AI-generated visual assets.",
+        },
         "prompt_policy": "Do not insert generation prompts into the note body. Save prompt sidecars only when needed.",
     }
 
@@ -939,6 +950,12 @@ def safe_attachment_folder(
         format_plan = build_format_plan(text, extract_terms(text), asset_kind_arg)
         folder = note_asset_folder(vault, note, asset_subfolder_for_folder_key(format_plan["folder_key"]), create=create)
     return folder
+
+
+def web_attachment_folder(vault: Path, folder_arg: str | None, note: Path, create: bool = True) -> Path:
+    if folder_arg:
+        return resolve_attachment_base(vault, folder_arg, create=create)
+    return note_asset_folder(vault, note, ASSET_SUBFOLDERS["web_image_folder"], create=create)
 
 
 def download_url(url: str) -> tuple[bytes, str | None]:
@@ -972,6 +989,7 @@ def write_source_note(image_path: Path, vault: Path, note: Path, args: argparse.
         f"sourceUrl: {json.dumps(args.url, ensure_ascii=False)}",
         f"sourcePage: {json.dumps(args.source_page or '', ensure_ascii=False)}",
         f"sourceTitle: {json.dumps(args.source_title or '', ensure_ascii=False)}",
+        "imageSourceKind: web",
         f"imageStyle: {json.dumps(style_plan['selected'], ensure_ascii=False)}",
         f"imageStyleMode: {json.dumps(style_plan['mode'], ensure_ascii=False)}",
         f"imageStyleReason: {json.dumps(style_plan['reason'], ensure_ascii=False)}",
@@ -993,7 +1011,7 @@ def write_source_note(image_path: Path, vault: Path, note: Path, args: argparse.
 def download_web_image(args: argparse.Namespace) -> dict:
     vault = find_vault(Path(args.vault).resolve() if args.vault else None)
     note = resolve_note(vault, args.note)
-    folder = safe_attachment_folder(vault, args.attachments_folder, note, args.asset_kind, create=not args.dry_run)
+    folder = web_attachment_folder(vault, args.attachments_folder, note, create=not args.dry_run)
     note_text = read_text(note)
     terms = extract_terms(note_text)
     style_plan = build_style_plan(note_text, terms, args.style, args.style_mode)
@@ -1004,6 +1022,7 @@ def download_web_image(args: argparse.Namespace) -> dict:
             "dry_run": True,
             "note": str(note),
             "target_folder": normalize_rel(folder, vault),
+            "target_folder_role": "web-sourced images",
             "url": args.url,
             "image_style": style_plan,
             "image_format": format_plan,
@@ -1040,6 +1059,7 @@ def download_web_image(args: argparse.Namespace) -> dict:
         "note": str(note),
         "image": normalize_rel(destination, vault),
         "absolute_path": str(destination),
+        "target_folder_role": "web-sourced images",
         "source_note": normalize_rel(source_note, vault) if source_note else None,
         "content_type": content_type,
         "image_style": style_plan,

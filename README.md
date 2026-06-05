@@ -123,7 +123,14 @@ config/defaults.json
 
 `generated_asset_folder_pattern` 控制生成资产目录，默认会按“笔记标题-封面-插图”创建笔记专属图片文件夹。`generated_image_text_language` 默认 `zh-CN`，表示生成图片里的标题、标签、说明文字优先使用中文。`write_generation_prompts_to_note` 默认为 `false`，避免把提示词写进笔记正文，污染 Obsidian 关系图谱。
 
-网上搜索或生成的图片会根据用途自动进入对应子目录。明确指定 `--asset-kind web-image` 时，会放到：
+图片会先按来源分目录，再按用途分子目录：
+
+- 原笔记已有图片复制或规范化时放入 `原文图片/`
+- 网上搜索下载的图片放入 `网页图片/`
+- AI 生成图片放入 `AI图/<封面|插图|信息图|图解|幻灯片>/`
+- AI 提示词旁路文件放入 `AI图/prompts/`
+
+网上搜索下载的图片默认会放到：
 
 ```text
 <attachments_folder>\<笔记标题>-封面-插图\网页图片\
@@ -230,7 +237,7 @@ python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>
     "asset_kind": "cover",
     "aspect_ratio": "16:9",
     "file_format": "png",
-    "target_folder": "图片/笔记标题-封面-插图/封面",
+    "target_folder": "图片/笔记标题-封面-插图/AI图/封面",
     "reason": "user-specified asset kind"
   }
 }
@@ -240,16 +247,18 @@ python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>
 
 ```text
 图片/<笔记标题>-封面-插图/
-图片/<笔记标题>-封面-插图/封面/
-图片/<笔记标题>-封面-插图/插图/
+图片/<笔记标题>-封面-插图/原文图片/
 图片/<笔记标题>-封面-插图/网页图片/
-图片/<笔记标题>-封面-插图/信息图/
-图片/<笔记标题>-封面-插图/图解/
-图片/<笔记标题>-封面-插图/幻灯片/
-图片/<笔记标题>-封面-插图/prompts/
+图片/<笔记标题>-封面-插图/AI图/
+图片/<笔记标题>-封面-插图/AI图/封面/
+图片/<笔记标题>-封面-插图/AI图/插图/
+图片/<笔记标题>-封面-插图/AI图/信息图/
+图片/<笔记标题>-封面-插图/AI图/图解/
+图片/<笔记标题>-封面-插图/AI图/幻灯片/
+图片/<笔记标题>-封面-插图/AI图/prompts/
 ```
 
-`prompts/` 只用于必要时保存旁路提示词文件，不会自动插入到笔记结构中。
+`AI图/prompts/` 只用于必要时保存旁路提示词文件，不会自动插入到笔记结构中。
 
 指定图片风格：
 
@@ -278,13 +287,13 @@ python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note> 
 python scripts/obsidian_image_helper.py download --vault <vault> --note <note> --url <image-url> --source-page <page-url> --caption "<caption>" --style hand-drawn --insert
 ```
 
-如需按封面、信息图、图解等类型保存，可以加 `--asset-kind`：
+如需记录这张网页图的视觉用途，可以加 `--asset-kind`；它会影响格式建议和来源记录，但下载文件仍会保存到 `网页图片/`：
 
 ```bash
 python scripts/obsidian_image_helper.py download --vault <vault> --note <note> --url <image-url> --source-page <page-url> --caption "<caption>" --asset-kind cover --insert
 ```
 
-默认会根据图片用途保存到对应子目录，同时生成 `.source.md` 文件记录来源、风格、图片类型、比例和格式，方便之后追溯。
+默认会保存到 `网页图片/`，同时生成 `.source.md` 文件记录来源、风格、图片类型、比例和格式，方便之后追溯。
 
 ### 插入图片
 
@@ -303,13 +312,14 @@ python scripts/obsidian_image_helper.py apply --vault <vault> --note <note> --im
 为方便 Obsidian 后续管理，建议生成资产放在这些目录：
 
 ```text
-图片/<笔记标题>-封面-插图/封面/
-图片/<笔记标题>-封面-插图/插图/
+图片/<笔记标题>-封面-插图/原文图片/
 图片/<笔记标题>-封面-插图/网页图片/
-图片/<笔记标题>-封面-插图/信息图/
-图片/<笔记标题>-封面-插图/图解/
-图片/<笔记标题>-封面-插图/幻灯片/
-图片/<笔记标题>-封面-插图/prompts/
+图片/<笔记标题>-封面-插图/AI图/封面/
+图片/<笔记标题>-封面-插图/AI图/插图/
+图片/<笔记标题>-封面-插图/AI图/信息图/
+图片/<笔记标题>-封面-插图/AI图/图解/
+图片/<笔记标题>-封面-插图/AI图/幻灯片/
+图片/<笔记标题>-封面-插图/AI图/prompts/
 Slides/<note-slug>/
 ```
 
@@ -321,7 +331,7 @@ Slides/<note-slug>/
 - 网上图片必须保存来源记录，发布用途需要优先选择许可清晰的图片。
 - 视觉资产必须保存到 vault 内，并使用相对路径引用。
 - 生成图片内的可见文字默认使用中文。
-- 提示词不写入笔记正文；需要留档时只保存到 `prompts/` 旁路目录。
+- 提示词不写入笔记正文；需要留档时只保存到 `AI图/prompts/` 旁路目录。
 - 不把 API key、cookie、平台凭据写进笔记。
 - 即使没有额外第三方 skill，也能完成基础整理、翻译、SVG 图解或生成提示词。
 

@@ -47,6 +47,12 @@ Use `image_format_mode` to route generated or sourced images by purpose. The def
 
 Use `generated_asset_folder_pattern` for note-specific visual asset folders. The default pattern names the folder from the analyzed note title plus the Chinese words for cover and illustration. Use `generated_image_text_language` for visible text inside generated images; default to Chinese. Keep `write_generation_prompts_to_note` false unless the user explicitly asks to put prompts in the note.
 
+Use source-first folder routing:
+- Images that already existed in the original note: use `original_image_folder` when copied or normalized.
+- Images downloaded from web search: use `web_image_folder`.
+- AI-generated images: use `ai_image_root` plus the routed folder key for the asset kind.
+- AI prompt sidecars: use `prompt_sidecar_folder`.
+
 ## Capability Router
 
 Choose the narrowest workflow that satisfies the user's request:
@@ -102,8 +108,8 @@ python scripts/obsidian_image_helper.py inventory --vault <vault> --note <note>
 python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>
 ```
 
-   - Use the returned folders for covers, illustrations, infographics, diagrams, slide images, and prompt sidecars.
-   - Use the returned `image_format` plan for image purpose, aspect ratio, file format, and target folder.
+   - Use the returned folders for original images, web images, AI covers, AI illustrations, AI infographics, AI diagrams, AI slide images, and prompt sidecars.
+   - Use the returned `image_format` plan for AI-generated image purpose, aspect ratio, file format, and target folder.
    - If the requested output type is explicit, pass `--asset-kind cover`, `illustration`, `infographic`, `diagram`, `slide`, `photo`, `card`, or `web-image`.
    - Make visible text inside generated images Chinese by default.
    - Do not insert image-generation prompts into the note body.
@@ -139,6 +145,7 @@ python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note>
    - Use the returned query plan with the runtime's web/image search tool.
    - Pass `--style <style>` to force a style, or `--style auto` / `--style-mode auto` to let the model choose a scene-specific style.
    - Pass `--asset-kind <kind>` when searching for a cover, infographic, diagram, slide image, photo, card, or web image with a specific output shape.
+   - Downloaded web images go to `web_image_folder` even when their visual purpose is cover, infographic, diagram, slide, photo, or card.
    - Compare candidates by semantic match, source trust, image clarity, license/usability, and caption fit.
    - Download and insert the best approved image with:
 
@@ -179,13 +186,13 @@ python scripts/obsidian_image_helper.py download --vault <vault> --note <note> -
 - Use explicit user intent first. If the user says cover, infographic, diagram, slide, photo, or card, pass that value as `--asset-kind`.
 - If the user does not specify a kind, let the helper's auto router choose from note content.
 - Respect the returned `image_format`:
-  - `cover`: `16:9`, `png`, save in `cover_folder`.
-  - `illustration`: `4:3`, `png`, save in `illustration_folder`.
-  - `infographic`: `3:4`, `png`, save in `infographic_folder`.
-  - `diagram`: `auto`, `svg` when `prefer_svg_for_diagrams` is true, save in `diagram_folder`.
-  - `slide`: `16:9`, `png`, save in `slide_image_folder`.
-  - `photo`: `4:3`, `jpg`, save in `illustration_folder` unless a web source format should be preserved.
-  - `card`: `3:4`, `png`, save in `infographic_folder`.
+  - `cover`: `16:9`, `png`, save AI-generated files in `cover_folder`.
+  - `illustration`: `4:3`, `png`, save AI-generated files in `illustration_folder`.
+  - `infographic`: `3:4`, `png`, save AI-generated files in `infographic_folder`.
+  - `diagram`: `auto`, `svg` when `prefer_svg_for_diagrams` is true, save AI-generated files in `diagram_folder`.
+  - `slide`: `16:9`, `png`, save AI-generated files in `slide_image_folder`.
+  - `photo`: `4:3`, `jpg`, save AI-generated files in `illustration_folder` unless a web source format should be preserved.
+  - `card`: `3:4`, `png`, save AI-generated files in `infographic_folder`.
   - `web-image`: preserve source format when useful, save in `web_image_folder`.
 - For generated raster images, set the image model aspect ratio from `image_format.aspect_ratio` when the model supports it.
 - For SVG diagrams, keep labels short, Chinese by default, and derived from the note content.
@@ -214,6 +221,7 @@ python scripts/obsidian_image_helper.py download --vault <vault> --note <note> -
 - If `config/defaults.json` defines `attachments_folder`, treat it as the default attachment folder.
 - Use the stable asset subfolders returned by `asset-plan` when creating new image files.
 - The default `<note-asset-folder>` is the analyzed note title plus the Chinese words for cover and illustration.
+- Keep source type distinct: original note images under `original_image_folder`, web-sourced images under `web_image_folder`, and AI-generated images under `ai_image_root`.
 - Use the prompt sidecar folder only for prompt files that are not inserted into the note.
 - Do not edit `.obsidian/`, plugin settings, or hidden provider folders unless explicitly asked.
 - Do not rename existing notes or images unless the user asks.

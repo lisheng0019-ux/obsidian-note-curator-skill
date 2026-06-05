@@ -111,20 +111,27 @@ Use `--asset-kind` to override auto-routing when the user names the intended out
 python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note> --asset-kind diagram
 ```
 
-The returned `image_format` object is the source of truth for generation and saving:
+The returned `image_format` object is the source of truth for AI generation and saving. Web downloads keep their own source folder.
 
 | Asset kind | Typical use | Aspect ratio | File format | Folder |
 |------------|-------------|--------------|-------------|--------|
-| `cover` | Note cover, article header, hero image | `16:9` | `png` | `封面/` |
-| `illustration` | Section image, conceptual visual | `4:3` | `png` | `插图/` |
-| `infographic` | Visual summary, comparison, timeline, metric card | `3:4` | `png` | `信息图/` |
-| `diagram` | Architecture, process, relationship, mind map | `auto` | `svg` when enabled, otherwise `png` | `图解/` |
-| `slide` | Slide image, teaching page, presentation visual | `16:9` | `png` | `幻灯片/` |
-| `photo` | Real people, places, products, events, objects | `4:3` | `jpg` | `插图/` |
-| `card` | Knowledge card, social card, compact summary | `3:4` | `png` | `信息图/` |
+| `cover` | Note cover, article header, hero image | `16:9` | `png` | `AI图/封面/` |
+| `illustration` | Section image, conceptual visual | `4:3` | `png` | `AI图/插图/` |
+| `infographic` | Visual summary, comparison, timeline, metric card | `3:4` | `png` | `AI图/信息图/` |
+| `diagram` | Architecture, process, relationship, mind map | `auto` | `svg` when enabled, otherwise `png` | `AI图/图解/` |
+| `slide` | Slide image, teaching page, presentation visual | `16:9` | `png` | `AI图/幻灯片/` |
+| `photo` | Real people, places, products, events, objects | `4:3` | `jpg` | `AI图/插图/` |
+| `card` | Knowledge card, social card, compact summary | `3:4` | `png` | `AI图/信息图/` |
 | `web-image` | Downloaded source image | `auto` | preserve source format | `网页图片/` |
 
 For generated raster images, pass the recommended aspect ratio to the image model when supported. For diagrams, prefer SVG when labels, arrows, hierarchy, or exact Chinese text matter. If the selected model cannot produce the preferred format, generate the closest supported format and keep the final extension honest.
+
+Source-first placement:
+
+- Original note images copied or normalized during cleanup: `<asset-root>/原文图片/`
+- Web-sourced images downloaded from search: `<asset-root>/网页图片/`
+- AI-generated images: `<asset-root>/AI图/<kind>/`
+- AI prompt sidecars: `<asset-root>/AI图/prompts/`
 
 ## Generated image language and prompt hygiene
 
@@ -132,11 +139,11 @@ For generated raster images, pass the recommended aspect ratio to the image mode
 - Use another language only when the user explicitly asks or the source note requires preserving a proper noun, brand, code symbol, or original quote.
 - Do not insert generation prompts into the Obsidian note body.
 - Do not add prompt sections, prompt backlinks, prompt tags, or prompt-only notes that would clutter graph view.
-- If a prompt must be saved for reproducibility, save it under the prompt sidecar folder returned by `asset-plan`, and do not link it from the note unless the user asks.
+- If a prompt must be saved for reproducibility, save it under the prompt sidecar folder returned by `asset-plan` (`AI图/prompts/`), and do not link it from the note unless the user asks.
 
 ## Generated asset folders
 
-Use stable folders so future runs can find and reuse generated assets. If `config/defaults.json` defines `attachments_folder`, place these folders under that configured attachment base; otherwise place them under `Attachments/`.
+Use stable folders so future runs can find and reuse assets. If `config/defaults.json` defines `attachments_folder`, place these folders under that configured attachment base; otherwise place them under `Attachments/`.
 
 Before saving generated or web-sourced visual assets, run:
 
@@ -144,7 +151,7 @@ Before saving generated or web-sourced visual assets, run:
 python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>
 ```
 
-Use `image_format.target_folder` as the preferred folder for the requested output type.
+Use `image_format.target_folder` as the preferred folder for AI-generated output. Web downloads use `web_image_folder` even when `--asset-kind` describes the visual purpose.
 
 The default asset root is:
 
@@ -154,13 +161,15 @@ The default asset root is:
 
 Use these subfolders:
 
-- Covers: `<笔记标题>-封面-插图/封面/`
-- Article illustrations: `<笔记标题>-封面-插图/插图/`
+- Original note images: `<笔记标题>-封面-插图/原文图片/`
 - Web-sourced images: `<笔记标题>-封面-插图/网页图片/`
-- Infographics: `<笔记标题>-封面-插图/信息图/`
-- Diagrams: `<笔记标题>-封面-插图/图解/`
-- Slide images: `<笔记标题>-封面-插图/幻灯片/`
-- Prompt sidecars, only when needed: `<笔记标题>-封面-插图/prompts/`
+- AI image root: `<笔记标题>-封面-插图/AI图/`
+- AI covers: `<笔记标题>-封面-插图/AI图/封面/`
+- AI article illustrations: `<笔记标题>-封面-插图/AI图/插图/`
+- AI infographics: `<笔记标题>-封面-插图/AI图/信息图/`
+- AI diagrams: `<笔记标题>-封面-插图/AI图/图解/`
+- AI slide images: `<笔记标题>-封面-插图/AI图/幻灯片/`
+- AI prompt sidecars, only when needed: `<笔记标题>-封面-插图/AI图/prompts/`
 
 Prefer descriptive filenames such as `retrieval-augmented-generation-flow.svg` over generic names such as `image1.png`.
 
