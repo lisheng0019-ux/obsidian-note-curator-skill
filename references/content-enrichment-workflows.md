@@ -1,6 +1,6 @@
-# Baoyu Content Workflows for Obsidian
+# Content Enrichment Workflows for Obsidian
 
-Use this reference when an Obsidian note needs translation, generated visuals, diagrams, or slides. Treat baoyu skills as optional specialized engines. The final artifact must remain Obsidian-friendly: saved inside the vault, linked with vault-relative paths, and traceable from the note.
+Use this reference when an Obsidian note needs translation, generated visuals, diagrams, or slides. The final artifact must remain Obsidian-friendly: saved inside the vault, linked with vault-relative paths, and traceable from the note.
 
 ## General Rules
 
@@ -20,13 +20,11 @@ Use this reference when an Obsidian note needs translation, generated visuals, d
 6. Update frontmatter only for stable metadata such as `coverImage`, `translationOf`, `language`, `visualAssets`, or `slideDeck`.
 7. Keep external API keys, cookies, platform credentials, and raw image prompts outside the note. Never paste secrets or prompts into Markdown.
 8. If prompts must be preserved, save them under `<asset-root>/prompts/` as sidecars and do not link them from the note unless the user asks.
-9. If a baoyu skill asks for first-time setup, complete that setup before generation. If setup is not possible, fall back to an outline-only result in chat, not prompt text inserted into the note.
+9. If image generation is not available, describe the missing generation step in the response or create an outline-only result in chat. Do not insert prompt text into the note.
 
 ## Translation
 
 Use when the user asks to translate, localize, make a bilingual note, or turn captured source material into another language.
-
-Preferred engine: `baoyu-translate`.
 
 Workflow:
 
@@ -46,13 +44,11 @@ translationOf: <source-note-path>
 sourceLanguage: <source-language>
 ```
 
-5. If `baoyu-translate` is available, use normal mode for articles and refined mode for publication-quality notes. If not available, translate directly while following the same output rules.
+5. Translate directly with the requested audience, tone, and terminology. For publication-quality work, use a two-pass flow: translate, then review and polish.
 
 ## Article Illustrations
 
 Use when the user asks for "add images", "illustrate this note", "section illustrations", or similar.
-
-Preferred engine: `baoyu-article-illustrator`.
 
 Workflow:
 
@@ -75,8 +71,6 @@ python scripts/obsidian_image_helper.py apply --vault <vault> --note <note> --im
 
 Use when the user asks for a cover, article header, preview image, or note hero image.
 
-Preferred engine: `baoyu-cover-image`; fallback: native image generation.
-
 Workflow:
 
 1. Summarize the note into one strong visual concept.
@@ -94,8 +88,6 @@ coverImage: <asset-root-relative-path>/封面/<note-slug>.png
 
 Use when the user asks for a visual summary, dense knowledge image, process card, comparison image, or high-density infographic.
 
-Preferred engine: `baoyu-infographic`.
-
 Workflow:
 
 1. Identify the information structure: timeline, comparison, funnel, tree, mind map, pyramid, grid, or process.
@@ -108,36 +100,32 @@ Workflow:
 
 Use when the user asks for architecture diagrams, flowcharts, sequence diagrams, mind maps, timelines, data flow, state machines, or "draw a diagram".
 
-Preferred engine: `baoyu-diagram`.
-
 Workflow:
 
-1. Choose SVG for technical/conceptual diagrams.
-2. Save the generated diagram to `<asset-root>/图解/<note-slug>-<diagram-type>.svg`.
+1. Choose SVG for technical/conceptual diagrams when exact text and reusable markup matter. Choose generated raster images when the user wants illustration style.
+2. Save the generated diagram to `<asset-root>/图解/<note-slug>-<diagram-type>.<ext>`.
 3. Insert with a wiki embed:
 
 ```markdown
-![[Attachments/diagrams/<file>.svg|<caption>]]
+![[<asset-root-relative-path>/图解/<file>|<caption>]]
 ```
 
-4. If the note already has Mermaid, PlantUML, or ASCII diagrams, decide whether to preserve them as source and add the SVG as a rendered companion.
-5. For factual diagrams, keep the diagram labels derived from note content. Do not add unverified architecture components or steps.
+4. If the note already has Mermaid, PlantUML, or ASCII diagrams, decide whether to preserve them as source and add the visual diagram as a rendered companion.
+5. For factual diagrams, keep the labels derived from note content. Do not add unverified architecture components or steps.
 
 ## Slide Decks
 
 Use when the user asks to turn a note into slides, presentation, deck, PPT, lecture material, or talk outline.
 
-Preferred engine: `baoyu-slide-deck`.
-
 Workflow:
 
 1. Decide the output:
-   - `outline-only`: add a slide outline note.
+   - `outline-only`: create a slide outline note.
    - `images`: generate slide images.
    - `deck`: generate or assemble a deck if the runtime supports it.
 2. Save outlines/deck material under `Slides/<note-slug>/`.
 3. Save slide images under `<asset-root>/幻灯片/`.
-4. Add a section near the end of the source note:
+4. Add a section near the end of the source note only if the user wants deck links in the note:
 
 ```markdown
 ## Related deck
@@ -147,14 +135,3 @@ Workflow:
 ```
 
 5. Keep slide generation separate from note rewriting. Do not turn the original note into slide bullets unless the user asks.
-
-## Fallback Without Baoyu Skills
-
-If the relevant baoyu skill is not installed:
-
-- Translation: perform translation directly and save sidecar notes.
-- Illustrations/covers/infographics: use the runtime-native image tool if available; otherwise describe the missing generation step in the response instead of adding prompts to the note.
-- Diagrams: create a standalone SVG directly when appropriate.
-- Slides: create a Markdown slide outline and, if possible, render images later.
-
-Always tell the user which path was used.

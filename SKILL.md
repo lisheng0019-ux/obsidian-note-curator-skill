@@ -11,7 +11,7 @@ Turn rough Obsidian notes into clean, linked, visually useful knowledge assets w
 
 Use Claude's vision capability for image understanding. Use the bundled helper script for deterministic vault scanning, image link resolution, candidate image matching, and safe Markdown insertion.
 
-This skill can also coordinate optional content-production skills such as `baoyu-translate`, `baoyu-article-illustrator`, `baoyu-cover-image`, `baoyu-infographic`, `baoyu-diagram`, and `baoyu-slide-deck` when they are installed. The Obsidian note remains the source of truth; generated or transformed assets must be saved into the vault and linked back from the note.
+This skill also supports native content enrichment workflows for translation, illustrations, cover images, infographics, diagrams, and slide material. The Obsidian note remains the source of truth; generated or transformed assets must be saved into the vault and linked back from the note.
 
 ## Local Configuration
 
@@ -53,7 +53,7 @@ Choose the narrowest workflow that satisfies the user's request:
 | Draw architecture/process/concept diagrams | Diagram workflow |
 | Turn a note into presentation material | Slide deck workflow |
 
-If a matching baoyu skill is installed and available in the runtime, prefer it for that specialized task. If it is not installed, use native Claude/Codex capabilities and save the same Obsidian-shaped outputs.
+No external skill package is required for these workflows. Use native Claude/Codex capabilities, configured image-generation tools, web/image search tools, and the bundled helper script to save Obsidian-shaped outputs.
 
 ## Workflow
 
@@ -93,12 +93,12 @@ python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>
    - Use the returned folders for covers, illustrations, infographics, diagrams, slide images, and prompt sidecars.
    - Make visible text inside generated images Chinese by default.
    - Do not insert image-generation prompts into the note body.
-   - Translation: see [content enrichment workflows](references/baoyu-content-workflows.md#translation).
-   - Illustrations: see [content enrichment workflows](references/baoyu-content-workflows.md#article-illustrations).
-   - Cover images: see [content enrichment workflows](references/baoyu-content-workflows.md#cover-images).
-   - Infographics: see [content enrichment workflows](references/baoyu-content-workflows.md#infographics).
-   - Diagrams: see [content enrichment workflows](references/baoyu-content-workflows.md#diagrams).
-   - Slide decks: see [content enrichment workflows](references/baoyu-content-workflows.md#slide-decks).
+   - Translation: see [content enrichment workflows](references/content-enrichment-workflows.md#translation).
+   - Illustrations: see [content enrichment workflows](references/content-enrichment-workflows.md#article-illustrations).
+   - Cover images: see [content enrichment workflows](references/content-enrichment-workflows.md#cover-images).
+   - Infographics: see [content enrichment workflows](references/content-enrichment-workflows.md#infographics).
+   - Diagrams: see [content enrichment workflows](references/content-enrichment-workflows.md#diagrams).
+   - Slide decks: see [content enrichment workflows](references/content-enrichment-workflows.md#slide-decks).
 
 6. Add images automatically when useful.
    - Prefer existing vault images first. Run:
@@ -199,4 +199,4 @@ The script supports:
 
 Read `references/obsidian-image-workflow.md` when the task involves complex image sourcing, captions, or vault conventions.
 
-Read `references/baoyu-content-workflows.md` when the task involves translation, generated illustrations, covers, infographics, diagrams, or slides.
+Read `references/content-enrichment-workflows.md` when the task involves translation, generated illustrations, covers, infographics, diagrams, or slides.

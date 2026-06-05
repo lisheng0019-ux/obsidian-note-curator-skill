@@ -33,13 +33,13 @@
   - 信息图
   - SVG 图解
   - 幻灯片素材
-- 可选集成 `JimLiu/baoyu-skills`
-  - `baoyu-translate`
-  - `baoyu-article-illustrator`
-  - `baoyu-cover-image`
-  - `baoyu-infographic`
-  - `baoyu-diagram`
-  - `baoyu-slide-deck`
+- 原生内容增强工作流
+  - 翻译
+  - 文章配图
+  - 封面图
+  - 信息图
+  - SVG 图解
+  - 幻灯片素材
 
 ## 目录结构
 
@@ -51,7 +51,7 @@ obsidian-note-curator-skill/
 ├── config/
 │   └── defaults.json
 ├── references/
-│   ├── baoyu-content-workflows.md
+│   ├── content-enrichment-workflows.md
 │   └── obsidian-image-workflow.md
 └── scripts/
     └── obsidian_image_helper.py
@@ -125,19 +125,7 @@ config/defaults.json
 
 可选增强：
 
-- `JimLiu/baoyu-skills`
 - 支持图片生成的运行环境或 API key
-
-## 推荐搭配 baoyu-skills
-
-如果你希望启用翻译、配图、封面、信息图、幻灯片等更完整的内容生产能力，可以安装：
-
-```bash
-/plugin marketplace add JimLiu/baoyu-skills
-/plugin install baoyu-skills@baoyu-skills
-```
-
-或按你的 Claude / Claudian 环境支持的方式安装对应 skills。
 
 ## 使用示例
 
@@ -284,7 +272,7 @@ Slides/<note-slug>/
 - 生成图片内的可见文字默认使用中文。
 - 提示词不写入笔记正文；需要留档时只保存到 `prompts/` 旁路目录。
 - 不把 API key、cookie、平台凭据写进笔记。
-- 没有安装 baoyu-skills 时，仍能降级完成基础整理、翻译、SVG 图解或生成提示词。
+- 即使没有额外第三方 skill，也能完成基础整理、翻译、SVG 图解或生成提示词。
 
 ## 许可证
 
