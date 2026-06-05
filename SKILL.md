@@ -23,6 +23,16 @@ Read `config/defaults.json` before saving or downloading images. This installati
   "attachments_folder": "<absolute path inside the vault>",
   "default_image_style": "hand-drawn",
   "image_style_mode": "default",
+  "image_format_mode": "auto",
+  "default_cover_aspect": "16:9",
+  "default_illustration_aspect": "4:3",
+  "default_infographic_aspect": "3:4",
+  "default_diagram_aspect": "auto",
+  "default_slide_aspect": "16:9",
+  "default_photo_aspect": "4:3",
+  "default_card_aspect": "3:4",
+  "default_web_image_aspect": "auto",
+  "prefer_svg_for_diagrams": true,
   "generated_asset_folder_pattern": "{note-title}-\u5c01\u9762-\u63d2\u56fe",
   "generated_image_text_language": "zh-CN",
   "write_generation_prompts_to_note": false
@@ -32,6 +42,8 @@ Read `config/defaults.json` before saving or downloading images. This installati
 When present, use `vault_root` as the default vault if `--vault` is omitted, and use `attachments_folder` as the default Obsidian image attachment base. The attachment folder must stay inside the target vault. Web-sourced and generated images should be saved under the note-specific asset folder inside that base folder unless the user passes an explicit `--attachments-folder`.
 
 Use `default_image_style` as the default style for inserted or generated images. The default is `hand-drawn`. When `image_style_mode` is `auto`, choose a scene-appropriate style from the note context unless the user explicitly names a style.
+
+Use `image_format_mode` to route generated or sourced images by purpose. The default is `auto`, which returns an `image_format` plan with `asset_kind`, `aspect_ratio`, `file_format`, `folder_key`, `target_folder`, and `reason`. Respect explicit user intent over the auto router. Use `prefer_svg_for_diagrams` to choose SVG for technical diagrams when exact labels and reusable markup matter.
 
 Use `generated_asset_folder_pattern` for note-specific visual asset folders. The default pattern names the folder from the analyzed note title plus the Chinese words for cover and illustration. Use `generated_image_text_language` for visible text inside generated images; default to Chinese. Keep `write_generation_prompts_to_note` false unless the user explicitly asks to put prompts in the note.
 
@@ -91,6 +103,8 @@ python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>
 ```
 
    - Use the returned folders for covers, illustrations, infographics, diagrams, slide images, and prompt sidecars.
+   - Use the returned `image_format` plan for image purpose, aspect ratio, file format, and target folder.
+   - If the requested output type is explicit, pass `--asset-kind cover`, `illustration`, `infographic`, `diagram`, `slide`, `photo`, `card`, or `web-image`.
    - Make visible text inside generated images Chinese by default.
    - Do not insert image-generation prompts into the note body.
    - Translation: see [content enrichment workflows](references/content-enrichment-workflows.md#translation).
@@ -124,6 +138,7 @@ python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note>
 
    - Use the returned query plan with the runtime's web/image search tool.
    - Pass `--style <style>` to force a style, or `--style auto` / `--style-mode auto` to let the model choose a scene-specific style.
+   - Pass `--asset-kind <kind>` when searching for a cover, infographic, diagram, slide image, photo, card, or web image with a specific output shape.
    - Compare candidates by semantic match, source trust, image clarity, license/usability, and caption fit.
    - Download and insert the best approved image with:
 
@@ -157,6 +172,24 @@ python scripts/obsidian_image_helper.py download --vault <vault> --note <note> -
 - For generated images, require visible text, labels, titles, callouts, and diagram wording to be Chinese unless the user explicitly asks for another language.
 - For web image search, prefer candidates that match the selected style, but never choose a weaker or misleading image only for style.
 - For existing local images, treat style as a preference. Relevance and accuracy come first.
+
+## Image Format Rules
+
+- Always check `asset-plan` before saving generated or web-sourced visual assets.
+- Use explicit user intent first. If the user says cover, infographic, diagram, slide, photo, or card, pass that value as `--asset-kind`.
+- If the user does not specify a kind, let the helper's auto router choose from note content.
+- Respect the returned `image_format`:
+  - `cover`: `16:9`, `png`, save in `cover_folder`.
+  - `illustration`: `4:3`, `png`, save in `illustration_folder`.
+  - `infographic`: `3:4`, `png`, save in `infographic_folder`.
+  - `diagram`: `auto`, `svg` when `prefer_svg_for_diagrams` is true, save in `diagram_folder`.
+  - `slide`: `16:9`, `png`, save in `slide_image_folder`.
+  - `photo`: `4:3`, `jpg`, save in `illustration_folder` unless a web source format should be preserved.
+  - `card`: `3:4`, `png`, save in `infographic_folder`.
+  - `web-image`: preserve source format when useful, save in `web_image_folder`.
+- For generated raster images, set the image model aspect ratio from `image_format.aspect_ratio` when the model supports it.
+- For SVG diagrams, keep labels short, Chinese by default, and derived from the note content.
+- If the selected model cannot produce the preferred format, generate the closest supported format and record the final file extension in the source sidecar or response.
 
 ## Prompt And Graph Hygiene
 
@@ -192,10 +225,10 @@ The script supports:
 
 - `inventory`: resolve embedded images and scan vault image candidates.
 - `suggest`: rank local images by note title, headings, tags, and filename/path overlap.
-- `web-query`: create web image search queries and match criteria from the note.
-- `asset-plan`: return the note-specific visual asset folders and prompt policy.
+- `web-query`: create web image search queries, style guidance, format routing, and match criteria from the note.
+- `asset-plan`: return the note-specific visual asset folders, image format plan, and prompt policy.
 - `apply`: insert one or more image embeds without duplicating existing links.
-- `download`: save a selected web image into the vault, write source metadata, and optionally insert it.
+- `download`: save a selected web image into the routed vault folder, write source metadata, and optionally insert it.
 
 Read `references/obsidian-image-workflow.md` when the task involves complex image sourcing, captions, or vault conventions.
 

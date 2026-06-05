@@ -26,6 +26,18 @@ DEFAULT_CONFIG = SKILL_DIR / "config" / "defaults.json"
 DEFAULT_IMAGE_STYLE = "hand-drawn"
 DEFAULT_ASSET_FOLDER_PATTERN = "{note-title}-封面-插图"
 DEFAULT_GENERATED_IMAGE_TEXT_LANGUAGE = "zh-CN"
+DEFAULT_IMAGE_FORMAT_MODE = "auto"
+DEFAULT_PREFER_SVG_FOR_DIAGRAMS = True
+DEFAULT_IMAGE_ASPECTS = {
+    "cover": "16:9",
+    "illustration": "4:3",
+    "infographic": "3:4",
+    "diagram": "auto",
+    "slide": "16:9",
+    "photo": "4:3",
+    "card": "3:4",
+    "web-image": "auto",
+}
 STYLE_PRESETS = {
     "hand-drawn": {
         "label": "hand-drawn",
@@ -63,6 +75,72 @@ STYLE_PRESETS = {
         "prompt_modifier": "realistic documentary photo style, natural lighting, authentic scene",
         "best_for": "people, places, objects, events, product or field notes",
     },
+}
+FORMAT_PRESETS = {
+    "cover": {
+        "label": "cover",
+        "folder_key": "cover_folder",
+        "file_format": "png",
+        "aspect_config": "default_cover_aspect",
+        "best_for": "note covers, visual anchors, hero images",
+    },
+    "illustration": {
+        "label": "illustration",
+        "folder_key": "illustration_folder",
+        "file_format": "png",
+        "aspect_config": "default_illustration_aspect",
+        "best_for": "section illustrations and conceptual explanations",
+    },
+    "infographic": {
+        "label": "infographic",
+        "folder_key": "infographic_folder",
+        "file_format": "png",
+        "aspect_config": "default_infographic_aspect",
+        "best_for": "summaries, comparisons, metrics, timelines, dense knowledge cards",
+    },
+    "diagram": {
+        "label": "diagram",
+        "folder_key": "diagram_folder",
+        "file_format": "png",
+        "aspect_config": "default_diagram_aspect",
+        "best_for": "architecture, process, relationship, and concept maps",
+    },
+    "slide": {
+        "label": "slide",
+        "folder_key": "slide_image_folder",
+        "file_format": "png",
+        "aspect_config": "default_slide_aspect",
+        "best_for": "presentation slides and 16:9 teaching material",
+    },
+    "photo": {
+        "label": "photo",
+        "folder_key": "illustration_folder",
+        "file_format": "jpg",
+        "aspect_config": "default_photo_aspect",
+        "best_for": "real people, places, products, events, objects, and field scenes",
+    },
+    "card": {
+        "label": "card",
+        "folder_key": "infographic_folder",
+        "file_format": "png",
+        "aspect_config": "default_card_aspect",
+        "best_for": "social cards, knowledge cards, and compact shareable visuals",
+    },
+    "web-image": {
+        "label": "web-image",
+        "folder_key": "web_image_folder",
+        "file_format": "source",
+        "aspect_config": "default_web_image_aspect",
+        "best_for": "downloaded web images where the original format should usually be preserved",
+    },
+}
+ASSET_SUBFOLDERS = {
+    "cover_folder": "封面",
+    "illustration_folder": "插图",
+    "web_image_folder": "网页图片",
+    "infographic_folder": "信息图",
+    "diagram_folder": "图解",
+    "slide_image_folder": "幻灯片",
 }
 
 
@@ -149,6 +227,38 @@ def configured_write_generation_prompts_to_note() -> bool:
         return False
     if not isinstance(value, bool):
         raise ValueError("write_generation_prompts_to_note in config/defaults.json must be a boolean")
+    return value
+
+
+def configured_image_format_mode() -> str:
+    config = load_config()
+    value = config.get("image_format_mode") or DEFAULT_IMAGE_FORMAT_MODE
+    if not isinstance(value, str):
+        raise ValueError("image_format_mode in config/defaults.json must be a string")
+    value = value.strip().lower()
+    if value not in {"auto", "default"}:
+        raise ValueError("image_format_mode must be 'auto' or 'default'")
+    return value
+
+
+def configured_default_aspect(asset_kind: str, fallback: str) -> str:
+    config = load_config()
+    config_key = FORMAT_PRESETS.get(asset_kind, {}).get("aspect_config")
+    value = config.get(config_key) if config_key else None
+    if value is None:
+        value = DEFAULT_IMAGE_ASPECTS.get(asset_kind, fallback)
+    if not isinstance(value, str):
+        raise ValueError(f"{config_key} in config/defaults.json must be a string")
+    return value.strip() or fallback
+
+
+def configured_prefer_svg_for_diagrams() -> bool:
+    config = load_config()
+    value = config.get("prefer_svg_for_diagrams")
+    if value is None:
+        return DEFAULT_PREFER_SVG_FOR_DIAGRAMS
+    if not isinstance(value, bool):
+        raise ValueError("prefer_svg_for_diagrams in config/defaults.json must be a boolean")
     return value
 
 
@@ -373,6 +483,196 @@ def build_style_plan(text: str, terms: list[str], style_arg: str | None, style_m
     }
 
 
+def normalize_asset_kind(value: str | None) -> str | None:
+    if not value:
+        return None
+    normalized = value.strip().lower().replace("_", "-")
+    aliases = {
+        "auto": None,
+        "hero": "cover",
+        "cover-image": "cover",
+        "section": "illustration",
+        "article-illustration": "illustration",
+        "info-graphic": "infographic",
+        "information-graphic": "infographic",
+        "svg-diagram": "diagram",
+        "process-diagram": "diagram",
+        "slide-image": "slide",
+        "deck": "slide",
+        "presentation": "slide",
+        "knowledge-card": "card",
+        "social-card": "card",
+        "web": "web-image",
+        "webimage": "web-image",
+        "封面": "cover",
+        "插图": "illustration",
+        "配图": "illustration",
+        "信息图": "infographic",
+        "图解": "diagram",
+        "图表": "diagram",
+        "幻灯片": "slide",
+        "照片": "photo",
+        "摄影": "photo",
+        "知识卡片": "card",
+        "网页图片": "web-image",
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized is None:
+        return None
+    if normalized not in FORMAT_PRESETS:
+        allowed = ", ".join(FORMAT_PRESETS)
+        raise ValueError(f"Unknown asset kind '{value}'. Expected one of: {allowed}")
+    return normalized
+
+
+def recommend_asset_kind(text: str, terms: list[str]) -> tuple[str, str]:
+    haystack = " ".join([text.lower(), *terms])
+    checks = [
+        (
+            "cover",
+            ("cover", "hero", "title image", "封面", "题图", "头图"),
+            "note explicitly asks for a cover or hero image",
+        ),
+        (
+            "slide",
+            ("slide", "slides", "deck", "presentation", "ppt", "powerpoint", "幻灯片", "演示", "汇报", "课件"),
+            "note is presentation-oriented",
+        ),
+        (
+            "diagram",
+            (
+                "architecture",
+                "workflow",
+                "system",
+                "process",
+                "pipeline",
+                "relationship",
+                "topology",
+                "api",
+                "database",
+                "架构",
+                "流程",
+                "系统",
+                "过程",
+                "关系",
+                "链路",
+                "拓扑",
+                "接口",
+                "数据库",
+                "图解",
+            ),
+            "note contains process, system, or relationship structure",
+        ),
+        (
+            "infographic",
+            (
+                "metric",
+                "data",
+                "comparison",
+                "compare",
+                "summary",
+                "dashboard",
+                "timeline",
+                "table",
+                "chart",
+                "指标",
+                "数据",
+                "对比",
+                "总结",
+                "时间线",
+                "表格",
+                "信息图",
+                "可视化",
+            ),
+            "note contains comparison, summary, data, or timeline structure",
+        ),
+        (
+            "card",
+            ("card", "social", "xiaohongshu", "xhs", "knowledge card", "小红书", "知识卡片", "卡片", "社媒"),
+            "note is suited to compact shareable knowledge cards",
+        ),
+        (
+            "photo",
+            (
+                "photo",
+                "person",
+                "place",
+                "product",
+                "event",
+                "object",
+                "scene",
+                "field",
+                "人物",
+                "地点",
+                "产品",
+                "事件",
+                "物品",
+                "现场",
+                "照片",
+            ),
+            "note appears to need a real-world subject or scene",
+        ),
+    ]
+    for asset_kind, tokens, reason in checks:
+        if any(token in haystack for token in tokens):
+            return asset_kind, reason
+    return "illustration", "general knowledge note benefits from a section illustration"
+
+
+def format_details(asset_kind: str) -> dict:
+    normalized = normalize_asset_kind(asset_kind) or "illustration"
+    preset = FORMAT_PRESETS[normalized]
+    fallback_aspect = DEFAULT_IMAGE_ASPECTS.get(normalized, "4:3")
+    file_format = preset["file_format"]
+    if normalized == "diagram" and configured_prefer_svg_for_diagrams():
+        file_format = "svg"
+    return {
+        "asset_kind": normalized,
+        "label": preset["label"],
+        "aspect_ratio": configured_default_aspect(normalized, fallback_aspect),
+        "file_format": file_format,
+        "folder_key": preset["folder_key"],
+        "best_for": preset["best_for"],
+    }
+
+
+def asset_subfolder_for_folder_key(folder_key: str | None) -> str:
+    return ASSET_SUBFOLDERS.get(folder_key or "", "插图")
+
+
+def build_format_plan(text: str, terms: list[str], asset_kind_arg: str | None = None) -> dict:
+    requested_kind = normalize_asset_kind(asset_kind_arg)
+    configured_mode = configured_image_format_mode()
+    if requested_kind:
+        selected = requested_kind
+        mode = "custom"
+        reason = "user-specified asset kind"
+    elif configured_mode == "auto":
+        selected, reason = recommend_asset_kind(text, terms)
+        mode = "auto"
+    else:
+        selected = "illustration"
+        reason = "configured default format routing"
+        mode = "default"
+    details = format_details(selected)
+    alternatives = [
+        {
+            "asset_kind": name,
+            "aspect_ratio": configured_default_aspect(name, DEFAULT_IMAGE_ASPECTS.get(name, "auto")),
+            "file_format": "svg" if name == "diagram" and configured_prefer_svg_for_diagrams() else preset["file_format"],
+            "best_for": preset["best_for"],
+        }
+        for name, preset in FORMAT_PRESETS.items()
+        if name != selected
+    ]
+    return {
+        "mode": mode,
+        "reason": reason,
+        **details,
+        "alternatives": alternatives,
+    }
+
+
 def first_heading_or_stem(text: str, note: Path) -> str:
     match = re.search(r"^#\s+(.+)$", text, flags=re.MULTILINE)
     if match:
@@ -477,11 +777,18 @@ def suggest_images(vault: Path, note: Path, limit: int) -> dict:
     }
 
 
-def build_web_query_plan(vault: Path, note: Path, style_arg: str | None = None, style_mode_arg: str | None = None) -> dict:
+def build_web_query_plan(
+    vault: Path,
+    note: Path,
+    style_arg: str | None = None,
+    style_mode_arg: str | None = None,
+    asset_kind_arg: str | None = None,
+) -> dict:
     text = read_text(note)
     title = first_heading_or_stem(text, note)
     terms = extract_terms(text)
     style_plan = build_style_plan(text, terms, style_arg, style_mode_arg)
+    format_plan = build_format_plan(text, terms, asset_kind_arg)
     headings = [
         heading.strip()
         for heading in re.findall(r"^#{2,3}\s+(.+)$", text, flags=re.MULTILINE)
@@ -492,7 +799,18 @@ def build_web_query_plan(vault: Path, note: Path, style_arg: str | None = None, 
     if not topic:
         topic = note.stem
     queries = []
-    for suffix in ("illustration", "diagram", "infographic", "photo"):
+    kind_suffixes = {
+        "cover": ("cover image", "hero image", "editorial cover"),
+        "illustration": ("illustration", "concept illustration", "educational illustration"),
+        "infographic": ("infographic", "visual summary", "knowledge infographic"),
+        "diagram": ("diagram", "process diagram", "architecture diagram"),
+        "slide": ("presentation slide", "slide background", "teaching slide"),
+        "photo": ("photo", "documentary image", "realistic photo"),
+        "card": ("knowledge card", "social media card", "visual card"),
+        "web-image": ("image", "illustration", "photo"),
+    }
+    preferred_suffixes = kind_suffixes.get(format_plan["asset_kind"], kind_suffixes["illustration"])
+    for suffix in (*preferred_suffixes, "illustration", "diagram", "infographic", "photo"):
         queries.append(f"{topic} {suffix}".strip())
     for style_term in style_plan["search_terms"]:
         queries.append(f"{topic} {style_term}".strip())
@@ -506,7 +824,7 @@ def build_web_query_plan(vault: Path, note: Path, style_arg: str | None = None, 
         if key not in seen:
             seen.add(key)
             unique_queries.append(query)
-    target_folder = note_asset_folder(vault, note, "网页图片", create=False)
+    target_folder = note_asset_folder(vault, note, asset_subfolder_for_folder_key(format_plan["folder_key"]), create=False)
     style_queries = [f"{topic} {term}".strip() for term in style_plan["search_terms"]]
     return {
         "vault": str(vault),
@@ -515,14 +833,17 @@ def build_web_query_plan(vault: Path, note: Path, style_arg: str | None = None, 
         "headings": headings,
         "terms_used": core_terms,
         "target_folder": normalize_rel(target_folder, vault),
-        "asset_plan": build_asset_plan(vault, note, create=False),
+        "asset_plan": build_asset_plan(vault, note, create=False, asset_kind_arg=asset_kind_arg),
         "image_style": style_plan,
+        "image_format": format_plan,
         "primary_query": unique_queries[0],
         "queries": unique_queries[:6],
         "style_queries": style_queries[:5],
         "match_criteria": [
             "semantic match with the note title, headings, and core entities",
             f"visual style should match '{style_plan['selected']}' unless the model selects a better scene-specific style",
+            f"asset kind should fit '{format_plan['asset_kind']}' with aspect ratio '{format_plan['aspect_ratio']}'",
+            f"prefer final file format '{format_plan['file_format']}' unless preserving a web source format is better",
             "clear subject matter that adds evidence or explanation, not decoration only",
             "trustworthy source page and usable image license or user-approved use",
             "sufficient resolution, no heavy watermark, no misleading crop",
@@ -573,36 +894,50 @@ def resolve_attachment_base(vault: Path, folder_arg: str | None, create: bool = 
     return folder
 
 
-def build_asset_plan(vault: Path, note: Path, create: bool = False) -> dict:
+def build_asset_plan(vault: Path, note: Path, create: bool = False, asset_kind_arg: str | None = None) -> dict:
+    text = read_text(note)
+    terms = extract_terms(text)
+    format_plan = build_format_plan(text, terms, asset_kind_arg)
     root = note_asset_folder(vault, note, None, create=create)
     folders = {
         "asset_root": root,
-        "cover_folder": root / "封面",
-        "illustration_folder": root / "插图",
-        "web_image_folder": root / "网页图片",
-        "infographic_folder": root / "信息图",
-        "diagram_folder": root / "图解",
-        "slide_image_folder": root / "幻灯片",
+        "cover_folder": root / ASSET_SUBFOLDERS["cover_folder"],
+        "illustration_folder": root / ASSET_SUBFOLDERS["illustration_folder"],
+        "web_image_folder": root / ASSET_SUBFOLDERS["web_image_folder"],
+        "infographic_folder": root / ASSET_SUBFOLDERS["infographic_folder"],
+        "diagram_folder": root / ASSET_SUBFOLDERS["diagram_folder"],
+        "slide_image_folder": root / ASSET_SUBFOLDERS["slide_image_folder"],
         "prompt_sidecar_folder": root / "prompts",
     }
     if create:
         for folder in folders.values():
             folder.mkdir(parents=True, exist_ok=True)
+    normalized_folders = {key: normalize_rel(path, vault) for key, path in folders.items()}
+    format_plan["target_folder"] = normalized_folders.get(format_plan["folder_key"])
     return {
         "note": str(note),
         "generated_image_text_language": configured_generated_image_text_language(),
         "write_generation_prompts_to_note": configured_write_generation_prompts_to_note(),
+        "image_format": format_plan,
         "folder_pattern": configured_asset_folder_pattern(),
-        "folders": {key: normalize_rel(path, vault) for key, path in folders.items()},
+        "folders": normalized_folders,
         "prompt_policy": "Do not insert generation prompts into the note body. Save prompt sidecars only when needed.",
     }
 
 
-def safe_attachment_folder(vault: Path, folder_arg: str | None, note: Path) -> Path:
+def safe_attachment_folder(
+    vault: Path,
+    folder_arg: str | None,
+    note: Path,
+    asset_kind_arg: str | None = None,
+    create: bool = True,
+) -> Path:
     if folder_arg:
-        folder = resolve_attachment_base(vault, folder_arg, create=True)
+        folder = resolve_attachment_base(vault, folder_arg, create=create)
     else:
-        folder = note_asset_folder(vault, note, "网页图片", create=True)
+        text = read_text(note)
+        format_plan = build_format_plan(text, extract_terms(text), asset_kind_arg)
+        folder = note_asset_folder(vault, note, asset_subfolder_for_folder_key(format_plan["folder_key"]), create=create)
     return folder
 
 
@@ -629,7 +964,9 @@ def download_url(url: str) -> tuple[bytes, str | None]:
 def write_source_note(image_path: Path, vault: Path, note: Path, args: argparse.Namespace) -> Path:
     source_path = image_path.with_suffix(f"{image_path.suffix}.source.md")
     note_text = read_text(note)
-    style_plan = build_style_plan(note_text, extract_terms(note_text), args.style, getattr(args, "style_mode", None))
+    terms = extract_terms(note_text)
+    style_plan = build_style_plan(note_text, terms, args.style, getattr(args, "style_mode", None))
+    format_plan = build_format_plan(note_text, terms, getattr(args, "asset_kind", None))
     lines = [
         "---",
         f"sourceUrl: {json.dumps(args.url, ensure_ascii=False)}",
@@ -638,6 +975,10 @@ def write_source_note(image_path: Path, vault: Path, note: Path, args: argparse.
         f"imageStyle: {json.dumps(style_plan['selected'], ensure_ascii=False)}",
         f"imageStyleMode: {json.dumps(style_plan['mode'], ensure_ascii=False)}",
         f"imageStyleReason: {json.dumps(style_plan['reason'], ensure_ascii=False)}",
+        f"imageAssetKind: {json.dumps(format_plan['asset_kind'], ensure_ascii=False)}",
+        f"imageAspectRatio: {json.dumps(format_plan['aspect_ratio'], ensure_ascii=False)}",
+        f"imageFileFormat: {json.dumps(format_plan['file_format'], ensure_ascii=False)}",
+        f"imageFormatReason: {json.dumps(format_plan['reason'], ensure_ascii=False)}",
         f"downloadedAt: {datetime.now(timezone.utc).isoformat()}",
         f"usedIn: {json.dumps(normalize_rel(note, vault), ensure_ascii=False)}",
         "---",
@@ -652,9 +993,11 @@ def write_source_note(image_path: Path, vault: Path, note: Path, args: argparse.
 def download_web_image(args: argparse.Namespace) -> dict:
     vault = find_vault(Path(args.vault).resolve() if args.vault else None)
     note = resolve_note(vault, args.note)
-    folder = safe_attachment_folder(vault, args.attachments_folder, note)
+    folder = safe_attachment_folder(vault, args.attachments_folder, note, args.asset_kind, create=not args.dry_run)
     note_text = read_text(note)
-    style_plan = build_style_plan(note_text, extract_terms(note_text), args.style, args.style_mode)
+    terms = extract_terms(note_text)
+    style_plan = build_style_plan(note_text, terms, args.style, args.style_mode)
+    format_plan = build_format_plan(note_text, terms, args.asset_kind)
     if args.dry_run:
         return {
             "changed": False,
@@ -663,6 +1006,7 @@ def download_web_image(args: argparse.Namespace) -> dict:
             "target_folder": normalize_rel(folder, vault),
             "url": args.url,
             "image_style": style_plan,
+            "image_format": format_plan,
             "insert": args.insert,
         }
     data, content_type = download_url(args.url)
@@ -699,6 +1043,7 @@ def download_web_image(args: argparse.Namespace) -> dict:
         "source_note": normalize_rel(source_note, vault) if source_note else None,
         "content_type": content_type,
         "image_style": style_plan,
+        "image_format": format_plan,
         "insert_result": insert_result,
     }
 
@@ -794,7 +1139,14 @@ def print_json(data: dict) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2))
 
 
+def configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+
+
 def main() -> int:
+    configure_stdio()
     parser = argparse.ArgumentParser(description="Resolve, suggest, download, and insert Obsidian note images.")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -811,12 +1163,14 @@ def main() -> int:
     asset.add_argument("--vault")
     asset.add_argument("--note", required=True)
     asset.add_argument("--create", action="store_true")
+    asset.add_argument("--asset-kind", help="Optional asset kind override: cover, illustration, infographic, diagram, slide, photo, card, or web-image")
 
     webq = sub.add_parser("web-query")
     webq.add_argument("--vault")
     webq.add_argument("--note", required=True)
     webq.add_argument("--style", help="Image style name, or 'auto' for scene-specific style selection")
     webq.add_argument("--style-mode", choices=["default", "auto"], help="Use configured default style or auto-select by note context")
+    webq.add_argument("--asset-kind", help="Optional asset kind override for format, aspect ratio, and target folder")
 
     app = sub.add_parser("apply")
     app.add_argument("--vault")
@@ -839,6 +1193,7 @@ def main() -> int:
     dl.add_argument("--caption")
     dl.add_argument("--style")
     dl.add_argument("--style-mode", choices=["default", "auto"])
+    dl.add_argument("--asset-kind", help="Optional asset kind override for target folder and source metadata")
     dl.add_argument("--position", choices=["hero", "after-heading", "end"], default="hero")
     dl.add_argument("--heading")
     dl.add_argument("--attachments-folder")
@@ -854,9 +1209,9 @@ def main() -> int:
         elif args.command == "suggest":
             print_json(suggest_images(vault, resolve_note(vault, args.note), args.limit))
         elif args.command == "asset-plan":
-            print_json(build_asset_plan(vault, resolve_note(vault, args.note), args.create))
+            print_json(build_asset_plan(vault, resolve_note(vault, args.note), args.create, args.asset_kind))
         elif args.command == "web-query":
-            print_json(build_web_query_plan(vault, resolve_note(vault, args.note), args.style, args.style_mode))
+            print_json(build_web_query_plan(vault, resolve_note(vault, args.note), args.style, args.style_mode, args.asset_kind))
         elif args.command == "apply":
             print_json(apply_images(args))
         elif args.command == "download":

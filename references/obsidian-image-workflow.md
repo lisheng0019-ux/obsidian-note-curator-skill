@@ -55,11 +55,14 @@ python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note>
 
 Pass `--style <style>` to force a visual style. Pass `--style auto` or `--style-mode auto` to let the model choose a scene-specific style. If no style is provided, the default is `hand-drawn` unless `config/defaults.json` overrides it.
 
+Pass `--asset-kind <kind>` when the intended output type is known. This sets the recommended aspect ratio, file format, and target folder before search or generation.
+
 2. Search with the runtime's web/image search tool using `primary_query`, then `style_queries`, then alternate `queries` if needed.
 3. Collect 5-10 candidates with image URL, source page URL, title/alt text, visible license/source hints, and thumbnail preview when available.
 4. Pick the best candidate using these criteria:
    - Semantic relevance to the note title, headings, entities, and claims.
    - Fit to the selected or auto-selected image style.
+   - Fit to the selected or auto-routed image format plan.
    - Adds evidence or explanation; not just decoration.
    - Comes from a trustworthy source page.
    - Has usable rights: public domain, Creative Commons, official media, user-approved fair use, or another clearly acceptable source.
@@ -73,7 +76,7 @@ python scripts/obsidian_image_helper.py download --vault <vault> --note <note> -
 
 6. Re-run `inventory` and verify the embed resolves.
 
-The `download` command stores web images under the note-specific asset folder by default and writes a `.source.md` sidecar with source metadata. Keep that sidecar unless the user explicitly asks not to preserve attribution.
+The `download` command stores web images under the routed note-specific asset folder by default and writes a `.source.md` sidecar with source metadata, style, asset kind, aspect ratio, and file format. Keep that sidecar unless the user explicitly asks not to preserve attribution.
 
 Reject search results when licensing is unclear and the note is intended for publishing. For private research notes, still preserve source metadata so the user can revisit the origin later.
 
@@ -94,6 +97,35 @@ Use a user-provided style exactly when the user specifies one. Use automatic sce
 
 For generated images, put the chosen style directly in the generation prompt. For web images, prefer matching style but do not let style outrank truthfulness, source quality, or note relevance.
 
+## Image format selection
+
+Run `asset-plan` before saving generated or web-sourced images:
+
+```bash
+python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>
+```
+
+Use `--asset-kind` to override auto-routing when the user names the intended output:
+
+```bash
+python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note> --asset-kind diagram
+```
+
+The returned `image_format` object is the source of truth for generation and saving:
+
+| Asset kind | Typical use | Aspect ratio | File format | Folder |
+|------------|-------------|--------------|-------------|--------|
+| `cover` | Note cover, article header, hero image | `16:9` | `png` | `封面/` |
+| `illustration` | Section image, conceptual visual | `4:3` | `png` | `插图/` |
+| `infographic` | Visual summary, comparison, timeline, metric card | `3:4` | `png` | `信息图/` |
+| `diagram` | Architecture, process, relationship, mind map | `auto` | `svg` when enabled, otherwise `png` | `图解/` |
+| `slide` | Slide image, teaching page, presentation visual | `16:9` | `png` | `幻灯片/` |
+| `photo` | Real people, places, products, events, objects | `4:3` | `jpg` | `插图/` |
+| `card` | Knowledge card, social card, compact summary | `3:4` | `png` | `信息图/` |
+| `web-image` | Downloaded source image | `auto` | preserve source format | `网页图片/` |
+
+For generated raster images, pass the recommended aspect ratio to the image model when supported. For diagrams, prefer SVG when labels, arrows, hierarchy, or exact Chinese text matter. If the selected model cannot produce the preferred format, generate the closest supported format and keep the final extension honest.
+
 ## Generated image language and prompt hygiene
 
 - Generated images should use Chinese for visible text by default: titles, labels, callouts, diagram nodes, legends, and captions rendered inside the image.
@@ -111,6 +143,8 @@ Before saving generated or web-sourced visual assets, run:
 ```bash
 python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>
 ```
+
+Use `image_format.target_folder` as the preferred folder for the requested output type.
 
 The default asset root is:
 

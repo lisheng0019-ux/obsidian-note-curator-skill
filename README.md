@@ -23,10 +23,12 @@
   - 根据标题、标签、正文关键词推荐匹配图片
   - 自动插入 Obsidian wiki embed
   - 支持选择插图风格，默认手绘风格，也可让大模型按场景自动选择
+  - 根据笔记内容自动判断图片用途、画幅比例、文件格式和保存目录
 - 网上搜索相关图片
   - 根据笔记分析结果生成图片搜索查询
   - 对候选图片进行语义匹配、来源可信度、清晰度和可用授权判断
   - 下载最匹配图片到 vault，并写入来源记录
+  - 可指定 `cover`、`infographic`、`diagram`、`slide`、`photo`、`card` 等图片类型
 - 生成或协调视觉资产
   - 文章配图
   - 封面图
@@ -97,6 +99,16 @@ config/defaults.json
   "attachments_folder": "D:\\path\\to\\your\\vault\\图片",
   "default_image_style": "hand-drawn",
   "image_style_mode": "default",
+  "image_format_mode": "auto",
+  "default_cover_aspect": "16:9",
+  "default_illustration_aspect": "4:3",
+  "default_infographic_aspect": "3:4",
+  "default_diagram_aspect": "auto",
+  "default_slide_aspect": "16:9",
+  "default_photo_aspect": "4:3",
+  "default_card_aspect": "3:4",
+  "default_web_image_aspect": "auto",
+  "prefer_svg_for_diagrams": true,
   "generated_asset_folder_pattern": "{note-title}-封面-插图",
   "generated_image_text_language": "zh-CN",
   "write_generation_prompts_to_note": false
@@ -107,9 +119,11 @@ config/defaults.json
 
 `default_image_style` 控制默认插图/生成图风格，默认值为 `hand-drawn`。`image_style_mode` 设为 `auto` 时，会让 Claude 根据笔记场景自动选择更合适的图片风格。
 
+`image_format_mode` 控制图片格式路由，默认值为 `auto`。脚本会根据笔记内容返回 `image_format`，其中包含 `asset_kind`、`aspect_ratio`、`file_format`、`target_folder` 和判断原因。`prefer_svg_for_diagrams` 为 `true` 时，技术图解会优先建议保存为 SVG。
+
 `generated_asset_folder_pattern` 控制生成资产目录，默认会按“笔记标题-封面-插图”创建笔记专属图片文件夹。`generated_image_text_language` 默认 `zh-CN`，表示生成图片里的标题、标签、说明文字优先使用中文。`write_generation_prompts_to_note` 默认为 `false`，避免把提示词写进笔记正文，污染 Obsidian 关系图谱。
 
-网上搜索下载的图片默认会放到：
+网上搜索或生成的图片会根据用途自动进入对应子目录。明确指定 `--asset-kind web-image` 时，会放到：
 
 ```text
 <attachments_folder>\<笔记标题>-封面-插图\网页图片\
@@ -179,10 +193,47 @@ python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note>
 
 Claude / Claudian 会用输出的 `primary_query` 和 `queries` 去搜索图片，并根据 `match_criteria` 选择最匹配的候选图。
 
+指定搜图/生成图用途：
+
+```bash
+python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note> --asset-kind infographic
+```
+
+支持的 `asset-kind` 包括：
+
+- `cover`：封面，默认 `16:9`，`png`
+- `illustration`：普通插图，默认 `4:3`，`png`
+- `infographic`：信息图，默认 `3:4`，`png`
+- `diagram`：图解/流程/架构图，默认 `auto`，优先 `svg`
+- `slide`：幻灯片图，默认 `16:9`，`png`
+- `photo`：真实照片，默认 `4:3`，`jpg`
+- `card`：知识卡片，默认 `3:4`，`png`
+- `web-image`：网页图片，保留来源格式优先
+
 ### 查看当前笔记的视觉资产目录规划
 
 ```bash
 python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>
+```
+
+明确指定输出类型：
+
+```bash
+python scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note> --asset-kind cover
+```
+
+返回结果会包含：
+
+```json
+{
+  "image_format": {
+    "asset_kind": "cover",
+    "aspect_ratio": "16:9",
+    "file_format": "png",
+    "target_folder": "图片/笔记标题-封面-插图/封面",
+    "reason": "user-specified asset kind"
+  }
+}
 ```
 
 默认返回的目录结构类似：
@@ -227,13 +278,13 @@ python scripts/obsidian_image_helper.py web-query --vault <vault> --note <note> 
 python scripts/obsidian_image_helper.py download --vault <vault> --note <note> --url <image-url> --source-page <page-url> --caption "<caption>" --style hand-drawn --insert
 ```
 
-默认会保存到：
+如需按封面、信息图、图解等类型保存，可以加 `--asset-kind`：
 
-```text
-图片/<笔记标题>-封面-插图/网页图片/
+```bash
+python scripts/obsidian_image_helper.py download --vault <vault> --note <note> --url <image-url> --source-page <page-url> --caption "<caption>" --asset-kind cover --insert
 ```
 
-同时生成 `.source.md` 文件记录来源，方便之后追溯。
+默认会根据图片用途保存到对应子目录，同时生成 `.source.md` 文件记录来源、风格、图片类型、比例和格式，方便之后追溯。
 
 ### 插入图片
 

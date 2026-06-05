@@ -5,7 +5,9 @@ Use this reference when an Obsidian note needs translation, generated visuals, d
 ## General Rules
 
 1. Keep the source note unchanged unless the user asks for in-place rewriting.
-2. Before saving generated visuals, run `scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>` and use the returned paths.
+2. Before saving generated visuals, run `scripts/obsidian_image_helper.py asset-plan --vault <vault> --note <note>` and use the returned paths plus `image_format`.
+   - If the output type is explicit, pass `--asset-kind cover`, `illustration`, `infographic`, `diagram`, `slide`, `photo`, `card`, or `web-image`.
+   - Use `image_format.aspect_ratio`, `image_format.file_format`, and `image_format.target_folder` as the generation/save plan.
 3. Save generated files under the note-specific asset root:
    - Asset root: `<attachment-base>/<笔记标题>-封面-插图/`
    - Covers: `<asset-root>/封面/`
@@ -58,7 +60,7 @@ Workflow:
    - Use the user's explicit style when provided.
    - Use automatic scene style when requested: `technical-schematic` for systems, `infographic` for dense summaries, `editorial` for essays, `minimal` for sparse references, and `photo` for real-world subjects.
 3. Prefer visual explanations over decoration.
-4. Generate or collect images into `<asset-root>/插图/`.
+4. Generate or collect images into `image_format.target_folder`, normally `<asset-root>/插图/`, using the returned aspect ratio and file format.
 5. Insert each image near the section it supports:
 
 ```bash
@@ -75,7 +77,7 @@ Workflow:
 
 1. Summarize the note into one strong visual concept.
 2. Use `hand-drawn` cover style by default unless the user specifies another style or asks for automatic scene styling.
-3. Generate a cover into `<asset-root>/封面/<note-slug>.png`.
+3. Run `asset-plan --asset-kind cover` and generate a `16:9` PNG cover into `<asset-root>/封面/<note-slug>.png` unless config overrides the aspect ratio.
 4. Update or add frontmatter:
 
 ```yaml
@@ -92,7 +94,7 @@ Workflow:
 
 1. Identify the information structure: timeline, comparison, funnel, tree, mind map, pyramid, grid, or process.
 2. Use `infographic` style for dense visual summaries, `hand-drawn` for softer learning notes, or automatic scene style when requested.
-3. Generate one image into `<asset-root>/信息图/<note-slug>-<topic>.png`.
+3. Run `asset-plan --asset-kind infographic` and generate one `3:4` PNG into `<asset-root>/信息图/<note-slug>-<topic>.png` unless config overrides the aspect ratio.
 4. Insert the infographic after the note summary or after the section it visualizes.
 5. Add a short caption explaining what the visual helps the reader understand.
 
@@ -102,16 +104,17 @@ Use when the user asks for architecture diagrams, flowcharts, sequence diagrams,
 
 Workflow:
 
-1. Choose SVG for technical/conceptual diagrams when exact text and reusable markup matter. Choose generated raster images when the user wants illustration style.
-2. Save the generated diagram to `<asset-root>/图解/<note-slug>-<diagram-type>.<ext>`.
-3. Insert with a wiki embed:
+1. Run `asset-plan --asset-kind diagram`.
+2. Choose SVG for technical/conceptual diagrams when exact text and reusable markup matter. Choose generated raster images when the user wants illustration style.
+3. Save the generated diagram to `<asset-root>/图解/<note-slug>-<diagram-type>.<ext>` using `image_format.file_format`.
+4. Insert with a wiki embed:
 
 ```markdown
 ![[<asset-root-relative-path>/图解/<file>|<caption>]]
 ```
 
-4. If the note already has Mermaid, PlantUML, or ASCII diagrams, decide whether to preserve them as source and add the visual diagram as a rendered companion.
-5. For factual diagrams, keep the labels derived from note content. Do not add unverified architecture components or steps.
+5. If the note already has Mermaid, PlantUML, or ASCII diagrams, decide whether to preserve them as source and add the visual diagram as a rendered companion.
+6. For factual diagrams, keep the labels derived from note content. Do not add unverified architecture components or steps.
 
 ## Slide Decks
 
@@ -124,7 +127,7 @@ Workflow:
    - `images`: generate slide images.
    - `deck`: generate or assemble a deck if the runtime supports it.
 2. Save outlines/deck material under `Slides/<note-slug>/`.
-3. Save slide images under `<asset-root>/幻灯片/`.
+3. Run `asset-plan --asset-kind slide` and save `16:9` PNG slide images under `<asset-root>/幻灯片/` unless config overrides the aspect ratio.
 4. Add a section near the end of the source note only if the user wants deck links in the note:
 
 ```markdown
