@@ -28,6 +28,9 @@ DEFAULT_ASSET_FOLDER_PATTERN = "{note-title}-封面-插图"
 DEFAULT_GENERATED_IMAGE_TEXT_LANGUAGE = "zh-CN"
 DEFAULT_IMAGE_FORMAT_MODE = "auto"
 DEFAULT_PREFER_SVG_FOR_DIAGRAMS = True
+DEFAULT_INPUT_FOLDER = "10_输入"
+DEFAULT_ARCHIVE_FOLDER = "90_归档"
+DEFAULT_ARCHIVED_INPUT_SUBFOLDER = "已整理输入"
 DEFAULT_IMAGE_ASPECTS = {
     "cover": "16:9",
     "illustration": "4:3",
@@ -276,6 +279,42 @@ def configured_vault_root() -> Path | None:
     if not value:
         return None
     return Path(value).resolve()
+
+
+def configured_post_curation_archive_input() -> bool:
+    config = load_config()
+    value = config.get("post_curation_archive_input")
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        raise ValueError("post_curation_archive_input in config/defaults.json must be a boolean")
+    return value
+
+
+def configured_input_folder() -> str:
+    config = load_config()
+    value = config.get("input_folder") or DEFAULT_INPUT_FOLDER
+    if not isinstance(value, str):
+        raise ValueError("input_folder in config/defaults.json must be a string")
+    return value.strip().strip("/\\") or DEFAULT_INPUT_FOLDER
+
+
+def configured_archive_folder() -> str:
+    config = load_config()
+    value = config.get("archive_folder") or DEFAULT_ARCHIVE_FOLDER
+    if not isinstance(value, str):
+        raise ValueError("archive_folder in config/defaults.json must be a string")
+    return value.strip() or DEFAULT_ARCHIVE_FOLDER
+
+
+def configured_archived_input_subfolder() -> str:
+    config = load_config()
+    value = config.get("archived_input_subfolder")
+    if value is None:
+        return DEFAULT_ARCHIVED_INPUT_SUBFOLDER
+    if not isinstance(value, str):
+        raise ValueError("archived_input_subfolder in config/defaults.json must be a string")
+    return value.strip().strip("/\\")
 
 
 def normalize_rel(path: Path, vault: Path) -> str:
@@ -881,6 +920,84 @@ def unique_path(path: Path) -> Path:
         counter += 1
 
 
+def resolve_archive_base(vault: Path, folder_arg: str | None, create: bool = True) -> Path:
+    folder_value = folder_arg or configured_archive_folder()
+    folder_path = Path(folder_value)
+    folder = folder_path if folder_path.is_absolute() else vault / folder_path
+    folder = folder.resolve()
+    try:
+        folder.relative_to(vault.resolve())
+    except ValueError as exc:
+        raise ValueError(f"Archive folder must stay inside the vault: {folder}") from exc
+    if create:
+        folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def is_moc_or_index_note(note: Path) -> bool:
+    text = read_text(note)
+    if re.search(r"(?im)^type:\s*moc\s*$", text):
+        return True
+    if re.search(r"(?im)^\s*-\s*vault/moc\s*$", text):
+        return True
+    name = note.stem.lower()
+    return "moc" in name or "索引" in note.stem
+
+
+def archive_input_note(args: argparse.Namespace) -> dict:
+    vault = find_vault(Path(args.vault).resolve() if args.vault else None)
+    note = resolve_note(vault, args.note)
+    if not configured_post_curation_archive_input() and not args.force:
+        return {
+            "changed": False,
+            "note": str(note),
+            "reason": "post_curation_archive_input is disabled in config/defaults.json",
+            "hint": "Pass --force to archive anyway, or enable post_curation_archive_input.",
+        }
+    input_folder = args.input_folder or configured_input_folder()
+    input_root = (vault / input_folder).resolve()
+    try:
+        relative_from_input = note.resolve().relative_to(input_root)
+    except ValueError:
+        return {
+            "changed": False,
+            "note": str(note),
+            "reason": "note is not under the configured input folder",
+            "input_folder": normalize_rel(input_root, vault),
+        }
+    if is_moc_or_index_note(note) and not args.include_moc:
+        return {
+            "changed": False,
+            "note": str(note),
+            "reason": "MOC and index notes are navigation pages and are not archived by default",
+            "hint": "Pass --include-moc only if you explicitly want to archive this navigation note.",
+        }
+    archive_base = resolve_archive_base(vault, args.archive_folder, create=not args.dry_run)
+    subfolder = args.archive_subfolder
+    if subfolder is None:
+        subfolder = configured_archived_input_subfolder()
+    subfolder = subfolder.strip().strip("/\\") if subfolder else ""
+    destination_root = archive_base / subfolder if subfolder else archive_base
+    destination = unique_path(destination_root / relative_from_input)
+    if args.dry_run:
+        return {
+            "changed": False,
+            "dry_run": True,
+            "note": str(note),
+            "destination": normalize_rel(destination, vault),
+            "input_folder": normalize_rel(input_root, vault),
+        }
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(note), str(destination))
+    return {
+        "changed": True,
+        "note": str(destination),
+        "archived_from": normalize_rel(note, vault),
+        "archived_to": normalize_rel(destination, vault),
+        "input_folder": normalize_rel(input_root, vault),
+    }
+
+
 def resolve_attachment_base(vault: Path, folder_arg: str | None, create: bool = True) -> Path:
     folder_value = folder_arg or configured_attachment_folder()
     if folder_value:
@@ -1221,6 +1338,16 @@ def main() -> int:
     dl.add_argument("--no-source-note", action="store_true")
     dl.add_argument("--dry-run", action="store_true")
 
+    arch = sub.add_parser("archive-note")
+    arch.add_argument("--vault")
+    arch.add_argument("--note", required=True)
+    arch.add_argument("--input-folder", help="Input folder to archive from, default from config/defaults.json")
+    arch.add_argument("--archive-folder", help="Archive folder inside the vault, default from config/defaults.json")
+    arch.add_argument("--archive-subfolder", help="Subfolder inside archive_folder for curated input notes")
+    arch.add_argument("--force", action="store_true", help="Archive even when post_curation_archive_input is disabled")
+    arch.add_argument("--include-moc", action="store_true", help="Allow archiving MOC or index navigation notes")
+    arch.add_argument("--dry-run", action="store_true")
+
     args = parser.parse_args()
     try:
         vault = find_vault(Path(args.vault).resolve() if getattr(args, "vault", None) else None)
@@ -1236,6 +1363,8 @@ def main() -> int:
             print_json(apply_images(args))
         elif args.command == "download":
             print_json(download_web_image(args))
+        elif args.command == "archive-note":
+            print_json(archive_input_note(args))
     except Exception as exc:
         print(json.dumps({"error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 1

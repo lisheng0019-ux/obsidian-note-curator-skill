@@ -111,7 +111,11 @@ config/defaults.json
   "prefer_svg_for_diagrams": true,
   "generated_asset_folder_pattern": "{note-title}-封面-插图",
   "generated_image_text_language": "zh-CN",
-  "write_generation_prompts_to_note": false
+  "write_generation_prompts_to_note": false,
+  "post_curation_archive_input": true,
+  "input_folder": "10_输入",
+  "archive_folder": "D:\\path\\to\\your\\vault\\90_归档",
+  "archived_input_subfolder": "已整理输入"
 }
 ```
 
@@ -122,6 +126,13 @@ config/defaults.json
 `image_format_mode` 控制图片格式路由，默认值为 `auto`。脚本会根据笔记内容返回 `image_format`，其中包含 `asset_kind`、`aspect_ratio`、`file_format`、`target_folder` 和判断原因。`prefer_svg_for_diagrams` 为 `true` 时，技术图解会优先建议保存为 SVG。
 
 `generated_asset_folder_pattern` 控制生成资产目录，默认会按“笔记标题-封面-插图”创建笔记专属图片文件夹。`generated_image_text_language` 默认 `zh-CN`，表示生成图片里的标题、标签、说明文字优先使用中文。`write_generation_prompts_to_note` 默认为 `false`，避免把提示词写进笔记正文，污染 Obsidian 关系图谱。
+
+`post_curation_archive_input` 控制整理后的输入笔记归档。设为 `true` 时，位于 `input_folder` 的笔记在整理、验证完成后应移动到 `archive_folder/archived_input_subfolder/`。默认会保留原来在 `10_输入` 下面的相对路径，例如：
+
+```text
+10_输入/待处理/示例.md
+-> 90_归档/已整理输入/待处理/示例.md
+```
 
 图片会先按来源分目录，再按用途分子目录：
 
@@ -306,6 +317,24 @@ python scripts/obsidian_image_helper.py apply --vault <vault> --note <note> --im
 ```bash
 python scripts/obsidian_image_helper.py apply --vault <vault> --note <note> --image <image-path> --position after-heading --heading "<heading>" --caption "<caption>"
 ```
+
+### 整理完成后归档输入笔记
+
+整理 `10_输入` 下的笔记后，先预览移动位置：
+
+```bash
+python scripts/obsidian_image_helper.py archive-note --vault <vault> --note <note> --dry-run
+```
+
+确认无误后移动：
+
+```bash
+python scripts/obsidian_image_helper.py archive-note --vault <vault> --note <note>
+```
+
+如果输入笔记已经提炼出稳定知识，应先把稳定知识写入 `20_知识库`，再归档 `10_输入` 中的原始输入文件。
+
+MOC 和索引页属于导航页，默认不会被归档；只有明确需要移动导航页时才使用 `--include-moc`。
 
 ## 生成资产的默认保存位置
 

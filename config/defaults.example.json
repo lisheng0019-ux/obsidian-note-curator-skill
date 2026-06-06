@@ -15,5 +15,9 @@
   "prefer_svg_for_diagrams": true,
   "generated_asset_folder_pattern": "{note-title}-封面-插图",
   "generated_image_text_language": "zh-CN",
-  "write_generation_prompts_to_note": false
+  "write_generation_prompts_to_note": false,
+  "post_curation_archive_input": true,
+  "input_folder": "10_输入",
+  "archive_folder": "D:\\path\\to\\your\\vault\\90_归档",
+  "archived_input_subfolder": "已整理输入"
 }

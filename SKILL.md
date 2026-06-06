@@ -35,7 +35,11 @@ Read `config/defaults.json` before saving or downloading images. This installati
   "prefer_svg_for_diagrams": true,
   "generated_asset_folder_pattern": "{note-title}-\u5c01\u9762-\u63d2\u56fe",
   "generated_image_text_language": "zh-CN",
-  "write_generation_prompts_to_note": false
+  "write_generation_prompts_to_note": false,
+  "post_curation_archive_input": true,
+  "input_folder": "10_\u8f93\u5165",
+  "archive_folder": "<absolute path to the vault archive folder>",
+  "archived_input_subfolder": "\u5df2\u6574\u7406\u8f93\u5165"
 }
 ```
 
@@ -46,6 +50,8 @@ Use `default_image_style` as the default style for inserted or generated images.
 Use `image_format_mode` to route generated or sourced images by purpose. The default is `auto`, which returns an `image_format` plan with `asset_kind`, `aspect_ratio`, `file_format`, `folder_key`, `target_folder`, and `reason`. Respect explicit user intent over the auto router. Use `prefer_svg_for_diagrams` to choose SVG for technical diagrams when exact labels and reusable markup matter.
 
 Use `generated_asset_folder_pattern` for note-specific visual asset folders. The default pattern names the folder from the analyzed note title plus the Chinese words for cover and illustration. Use `generated_image_text_language` for visible text inside generated images; default to Chinese. Keep `write_generation_prompts_to_note` false unless the user explicitly asks to put prompts in the note.
+
+When `post_curation_archive_input` is true, notes that started in `input_folder` must be moved to `archive_folder/archived_input_subfolder/` after the curation is complete. Preserve the note's relative path under the input folder so the archive keeps source context. Do not archive notes outside `input_folder`.
 
 Use source-first folder routing:
 - Images that already existed in the original note: use `original_image_folder` when copied or normalized.
@@ -163,6 +169,25 @@ python scripts/obsidian_image_helper.py download --vault <vault> --note <note> -
    - Avoid duplicate embeds and avoid putting decorative images between tightly related paragraphs.
    - For generated assets, confirm the output file exists inside the vault and the note uses a vault-relative link.
    - For web-sourced images, confirm a `.source.md` sidecar or equivalent attribution record exists unless the user explicitly disabled it.
+
+9. Archive completed input notes.
+   - If the curated note is under the configured `input_folder`, and `post_curation_archive_input` is true, archive it after validation.
+   - If the input note produced stable knowledge, create or update the stable knowledge note in `20_知识库` first, then archive the original input note.
+   - Preview the move first:
+
+```bash
+python scripts/obsidian_image_helper.py archive-note --vault <vault> --note <note> --dry-run
+```
+
+   - Then move it:
+
+```bash
+python scripts/obsidian_image_helper.py archive-note --vault <vault> --note <note>
+```
+
+   - The default destination is `90_归档/已整理输入/<original path under 10_输入>/`.
+   - MOC and index notes are navigation pages; do not archive them unless the user explicitly asks.
+   - Do not archive notes that are still awaiting review, and do not archive notes outside `10_输入`.
 
 ## Image Style Rules
 
